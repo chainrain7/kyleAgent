@@ -1,0 +1,574 @@
+{
+ "generated_at": "2026-10-24T15:34:27.684485+00:00",
+ "summary": {
+  "total": 10,
+  "passed": 10,
+  "pass_rate": 1.0,
+  "llm_calls": 0,
+  "input_tokens": 0,
+  "output_tokens": 0
+ },
+ "results": [
+  {
+   "task_id": "read-report-magic",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "用 read_file 读取 sample.txt,告诉我文档里的 magic number 是多少,只回答数字。",
+    "status": "success",
+    "reason": null,
+    "steps": 2,
+    "step_started": 2,
+    "step_finished": 2,
+    "event_count": 8,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 1,
+     "finished": 1,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "read_file": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "write-hello",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "创建文件 hello.txt,内容正好是一行:kyle-e2e",
+    "status": "success",
+    "reason": null,
+    "steps": 4,
+    "step_started": 4,
+    "step_finished": 4,
+    "event_count": 16,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 3,
+     "finished": 3,
+     "failed": 0,
+     "avg_ms": 36.7,
+     "max_ms": 78,
+     "by_tool": {
+      "bash": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 55.0,
+       "max_ms": 78
+      },
+      "write_file": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "bash-marker",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "用 bash 创建目录 out/inner,并在其中创建 marker.txt,内容为 done",
+    "status": "success",
+    "reason": null,
+    "steps": 9,
+    "step_started": 9,
+    "step_finished": 9,
+    "event_count": 42,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 8,
+     "finished": 5,
+     "failed": 7,
+     "avg_ms": 6347.3,
+     "max_ms": 60000,
+     "by_tool": {
+      "bash": {
+       "calls": 7,
+       "finished": 4,
+       "failed": 7,
+       "avg_ms": 6924.4,
+       "max_ms": 60000
+      },
+      "read_file": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "locate-launch-code",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "当前目录有三个文件,找出哪个文件包含 launch code,告诉我文件名和完整的 launch code。",
+    "status": "success",
+    "reason": null,
+    "steps": 7,
+    "step_started": 7,
+    "step_finished": 7,
+    "event_count": 34,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 8,
+     "finished": 7,
+     "failed": 3,
+     "avg_ms": 812.4,
+     "max_ms": 6047,
+     "by_tool": {
+      "bash": {
+       "calls": 4,
+       "finished": 3,
+       "failed": 3,
+       "avg_ms": 1354.0,
+       "max_ms": 6047
+      },
+      "list_dir": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "read_file": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "edit-retries",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "把 config.txt 里的 retries=1 改成 retries=5,其他内容保持不变。",
+    "status": "success",
+    "reason": null,
+    "steps": 6,
+    "step_started": 6,
+    "step_finished": 6,
+    "event_count": 26,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 5,
+     "finished": 4,
+     "failed": 1,
+     "avg_ms": 12018.4,
+     "max_ms": 60016,
+     "by_tool": {
+      "bash": {
+       "calls": 3,
+       "finished": 2,
+       "failed": 1,
+       "avg_ms": 20030.7,
+       "max_ms": 60016
+      },
+      "read_file": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "plan-three-steps",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "把目标「准备演示」拆成三个任务(写大纲、写正文、检查),用任务工具逐个创建并全部标记完成。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 46,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 12,
+     "finished": 12,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "task_create": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "task_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "task_update": {
+       "calls": 8,
+       "finished": 8,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "note-preference",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "请记住这条偏好:本项目部署一律使用 docker。用笔记工具保存它。",
+    "status": "success",
+    "reason": null,
+    "steps": 2,
+    "step_started": 2,
+    "step_finished": 2,
+    "event_count": 8,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 1,
+     "finished": 1,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "note_save": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "multi-file-sum",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "读取 a.txt、b.txt、c.txt 三个文件里的 value,告诉我它们的总和。",
+    "status": "success",
+    "reason": null,
+    "steps": 4,
+    "step_started": 4,
+    "step_finished": 4,
+    "event_count": 22,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 5,
+     "finished": 4,
+     "failed": 3,
+     "avg_ms": 1172.1,
+     "max_ms": 6078,
+     "by_tool": {
+      "bash": {
+       "calls": 2,
+       "finished": 1,
+       "failed": 3,
+       "avg_ms": 2051.2,
+       "max_ms": 6078
+      },
+      "read_file": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "fix-pytest-bug",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "test_calc.py 里的测试失败了。运行 pytest 找到 bug,修复 calc.py 让测试通过,并确认最终 pytest 全绿。",
+    "status": "success",
+    "reason": null,
+    "steps": 5,
+    "step_started": 5,
+    "step_finished": 5,
+    "event_count": 24,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 6,
+     "finished": 6,
+     "failed": 0,
+     "avg_ms": 145.5,
+     "max_ms": 452,
+     "by_tool": {
+      "bash": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 285.7,
+       "max_ms": 452
+      },
+      "read_file": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "write_file": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 16.0,
+       "max_ms": 16
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "subagent-secret",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "用 spawn_agent 派一个子 agent 去读 secret.txt 并告诉你密码,然后你转述给我。",
+    "status": "success",
+    "reason": null,
+    "steps": 2,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 48,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 0,
+     "models": {},
+     "input_tokens": 0,
+     "output_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 0,
+     "context_pct_max": 0.0
+    },
+    "tools": {
+     "total": 10,
+     "finished": 6,
+     "failed": 12,
+     "avg_ms": 3253.7,
+     "max_ms": 24905,
+     "by_tool": {
+      "bash": {
+       "calls": 7,
+       "finished": 3,
+       "failed": 12,
+       "avg_ms": 2244.1,
+       "max_ms": 6547
+      },
+      "list_dir": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "read_file": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "spawn_agent": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 24905.0,
+       "max_ms": 24905
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  }
+ ]
+}

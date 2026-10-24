@@ -4,7 +4,7 @@ import asyncio
 import datetime
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC
 from pathlib import Path
@@ -146,6 +146,11 @@ class PermissionManager:
 
         allowed = self._apply_response(raw, session_id, tool_name)
         return allowed, raw
+
+    # 预授一批工具的 session 级 always 权限(评测 harness 等无人值守场景使用)
+    def preapprove(self, session_id: str, tool_names: Iterable[str]) -> None:
+        for name in tool_names:
+            self._session_always[(session_id, name)] = "allow"
 
     # 处理客户端返回的审批决策，resolve 对应 Future
     def respond(self, tool_use_id: str, decision: str) -> None:

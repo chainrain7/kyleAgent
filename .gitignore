@@ -15,3 +15,5 @@ build/
 .DS_Store
 *.log
 workspace/
+# 评测运行产物(时间戳存档不入库,baseline.json 例外)
+evals/results/2*

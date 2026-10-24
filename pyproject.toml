@@ -16,6 +16,7 @@ dependencies = [
     "anthropic>=0.25",     # Anthropic LLM SDK（流式 + prompt caching）
     "textual>=0.75",       # 终端 UI 框架（kyle-tui）
     "httpx[socks]>=0.28.1",
+    "tiktoken>=0.14.0",
 ]
 
 # 安装后可在 PATH 中执行的入口：`kyle` / `kyle-core` / `kyle-tui`
@@ -27,6 +28,10 @@ kyle-tui = "kyle_agent.tui.__main__:main"
 # ---- Hatch：打 wheel 时从 src 布局收录包 ----
 [tool.hatch.build.targets.wheel]
 packages = ["src/kyle_agent"] # 源码在 src/kyle_agent
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
 
 # ---- 开发期依赖（PEP 735）----
 [dependency-groups]
