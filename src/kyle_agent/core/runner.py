@@ -34,6 +34,7 @@ from kyle_agent.core.tools.builtin import (
     TaskGetTool,
     TaskListTool,
     TaskUpdateTool,
+    WebSearchTool,
     WriteFileTool,
 )
 from kyle_agent.core.tools.registry import ToolRegistry
@@ -98,7 +99,7 @@ class AgentRunner:
             return allowed is None or name in allowed
 
         registry = ToolRegistry()
-        for t in [ReadFileTool(), BashTool(), WriteFileTool(), ListDirTool()]:
+        for t in [ReadFileTool(), BashTool(), WriteFileTool(), ListDirTool(), WebSearchTool()]:
             if _ok(t.name):
                 registry.register(t)
         for t in [
