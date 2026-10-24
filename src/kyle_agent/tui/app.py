@@ -759,6 +759,19 @@ class KyleTuiApp(App[None]):
             f"{session}  [{color}]{state}[/{color}]"
         )
 
+    # 尝试恢复既有 session;失败(无活跃 session/协议错误)返回 None 由调用方退回新建
+    async def _try_resume_session(
+        self, client: SocketClient
+    ) -> tuple[str, str | None] | None:
+        try:
+            result = await client.send_command("session.resume", {})
+        except IpcError as e:
+            log.info("session.resume unavailable (%s), falling back to create", e)
+            return None
+        session_id = str(result["session_id"])
+        last_run_id = result.get("last_run_id")
+        return session_id, str(last_run_id) if last_run_id else None
+
     # 管理 SocketClient 生命周期：连接、订阅事件、断线重连
     async def _socket_loop(self) -> None:
         header = self.query_one("#header", Label)
@@ -806,12 +819,31 @@ class KyleTuiApp(App[None]):
                     ],
                     "scope": "global",
                 }
-                if self._replay_run_id is not None:
-                    params["replay_from_run"] = self._replay_run_id
-                await client.send_command("event.subscribe", params)
-                created = await client.send_command("session.create", {"mode": "chat"})
-                self._session_id = str(created["session_id"])
-                log.info("session created session_id=%s", self._session_id)
+                # 改造 E:断线重连/TUI 重启后恢复现场——优先 resume 既有 session,
+                # 并以其最近 run 作为回放锚点补齐期间错过的事件;无可恢复 session
+                # (首次启动或全部已关闭)时退回 create
+                replay_anchor = self._replay_run_id
+                resumed = await self._try_resume_session(client)
+                if resumed is not None:
+                    session_id, last_run_id = resumed
+                    if replay_anchor is None and last_run_id is not None:
+                        replay_anchor = last_run_id
+                else:
+                    created = await client.send_command(
+                        "session.create", {"mode": "chat"}
+                    )
+                    session_id = str(created["session_id"])
+                self._session_id = session_id
+                if replay_anchor is not None:
+                    params["replay_from_run"] = replay_anchor
+                    # 重连回放的块可能与断线前已渲染的重复,加分隔行说明
+                    self._append(Static(
+                        f"[dim]── replay from run {replay_anchor} ──[/dim]"
+                    ))
+                log.info(
+                    "session attached session_id=%s replay=%s resume=%s",
+                    self._session_id, replay_anchor, resumed is not None,
+                )
                 prompt = self._prompt()
                 if prompt is not None:
                     prompt.disabled = False

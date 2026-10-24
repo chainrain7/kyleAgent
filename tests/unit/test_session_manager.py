@@ -104,3 +104,45 @@ async def test_closed_session_rejects_message(tmp_path: Path) -> None:
     with pytest.raises(HandlerError) as exc:
         await manager.send_message(session.id, "again")
     assert exc.value.code == SESSION_CLOSED
+
+
+# 功能：resume("") 在"进程重启"(新 SessionManager 实例)后能从磁盘找回最近活跃 session
+# 设计：创建两个 session 并关闭更新的那个,模拟 daemon 重启后新实例 resume,
+#       断言找回的是仍活跃的旧 session 且 send_message 可继续(改造 E 的核心场景)
+async def test_resume_latest_active_after_restart(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path)
+    manager = SessionManager(store, lambda: _Runner(), EventBus())  # type: ignore[arg-type]
+    older = await manager.create("chat", "older")
+    newer = await manager.create("chat", "newer")
+    await manager.close(newer.id)
+
+    restarted = SessionManager(store, lambda: _Runner(), EventBus())  # type: ignore[arg-type]
+    resumed = await restarted.resume("")
+
+    assert resumed.id == older.id
+    # 恢复后可以直接续聊
+    await restarted.send_message(resumed.id, "hello again")
+    messages = store.read_messages(resumed.id)
+    assert messages[0]["content"] == "hello again"
+
+
+# 功能：显式 session_id 的 resume 与不存在 id 的报错
+# 设计：显式 id 恢复指定 session;不存在时抛 FileNotFoundError(磁盘无此 meta)
+async def test_resume_explicit_id(tmp_path: Path) -> None:
+    store = SessionStore(tmp_path)
+    manager = SessionManager(store, lambda: _Runner(), EventBus())  # type: ignore[arg-type]
+    session = await manager.create("chat")
+
+    restarted = SessionManager(store, lambda: _Runner(), EventBus())  # type: ignore[arg-type]
+    assert (await restarted.resume(session.id)).id == session.id
+    with pytest.raises(FileNotFoundError):
+        await restarted.resume("sess-nosuch")
+
+
+# 功能：磁盘上没有可恢复的活跃 session 时 resume 返回结构化错误
+# 设计：空存储目录 + 新实例 → HandlerError(SESSION_NOT_FOUND),客户端据此退回 create
+async def test_resume_no_active_returns_handler_error(tmp_path: Path) -> None:
+    restarted = SessionManager(SessionStore(tmp_path), lambda: _Runner(), EventBus())  # type: ignore[arg-type]
+    with pytest.raises(HandlerError) as exc:
+        await restarted.resume("")
+    assert exc.value.code == SESSION_NOT_FOUND

@@ -24,6 +24,11 @@ class SessionStore:
         self._root = root.expanduser()
         self._root.mkdir(parents=True, exist_ok=True)
 
+    # 存储根目录（所有 session 目录的父级）
+    @property
+    def root(self) -> Path:
+        return self._root
+
     # 返回指定 session 的目录路径
     def session_dir(self, sid: str) -> Path:
         return self._root / sid
