@@ -235,6 +235,8 @@ class CoreApp:
         store = SessionStore(sessions_root)
         assert self._config is not None
         compact_provider = AnthropicProvider(self._config.llm.default_model)
+        from kyle_agent.core.llm.router import build_router
+        compact_router = build_router(self._config.llm)
 
         self._mcp_manager = McpServerManager()
         if self._config.mcp.servers:
@@ -252,6 +254,7 @@ class CoreApp:
             ),
             bus=self._bus,
             provider=compact_provider,
+            router=compact_router,
         )
 
         server = SocketServer(

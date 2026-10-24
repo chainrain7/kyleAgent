@@ -34,7 +34,11 @@ class AgentConfig:
 @dataclass
 class LlmConfig:
     default_model: str = _DEFAULT_MODEL
-    router: str = "static"  # "static" | "rule_based" (S4) | "cost_budget" (S6)
+    # 路由策略:static=恒用 default_model;rule_based=规划/执行分档(改造 A)
+    router: str = "static"  # "static" | "rule_based"
+    # rule_based 的两个档位;留空回退 default_model
+    planning_model: str = ""
+    execution_model: str = ""
 
 
 @dataclass
@@ -172,7 +176,9 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
         llm = data["llm"]
         if not isinstance(llm, dict):
             raise SystemExit("Config error: [llm] must be a table")
-        unknown_llm: set[str] = set(llm.keys()) - {"default_model", "router"}
+        unknown_llm: set[str] = set(llm.keys()) - {
+            "default_model", "router", "planning_model", "execution_model",
+        }
         if unknown_llm:
             raise SystemExit(f"Unknown [llm] keys: {', '.join(sorted(unknown_llm))}")
         if "default_model" in llm:
@@ -184,7 +190,21 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
             val = llm["router"]
             if not isinstance(val, str):
                 raise SystemExit("Config error: llm.router must be a string")
+            if val not in ("static", "rule_based"):
+                raise SystemExit(
+                    "Config error: llm.router must be 'static' or 'rule_based'"
+                )
             config.llm.router = val
+        if "planning_model" in llm:
+            val = llm["planning_model"]
+            if not isinstance(val, str):
+                raise SystemExit("Config error: llm.planning_model must be a string")
+            config.llm.planning_model = val
+        if "execution_model" in llm:
+            val = llm["execution_model"]
+            if not isinstance(val, str):
+                raise SystemExit("Config error: llm.execution_model must be a string")
+            config.llm.execution_model = val
 
     if "trace" in data:
         trace = data["trace"]
@@ -344,6 +364,14 @@ def _apply_env(config: KyleConfig) -> None:
     default_model = os.environ.get("KYLE_LLM_DEFAULT_MODEL")
     if default_model is not None:
         config.llm.default_model = default_model
+
+    planning_model = os.environ.get("KYLE_LLM_PLANNING_MODEL")
+    if planning_model is not None:
+        config.llm.planning_model = planning_model
+
+    execution_model = os.environ.get("KYLE_LLM_EXECUTION_MODEL")
+    if execution_model is not None:
+        config.llm.execution_model = execution_model
 
     trace_enabled = os.environ.get("KYLE_TRACE_ENABLED")
     if trace_enabled is not None:

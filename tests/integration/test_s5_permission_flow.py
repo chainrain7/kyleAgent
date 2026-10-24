@@ -36,6 +36,8 @@ class _SingleBashProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         self._step += 1
         if self._step == 1:
@@ -59,6 +61,8 @@ class _TwoBashProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         self._step += 1
         if self._step == 1:

@@ -23,6 +23,7 @@ from kyle_agent.core.skills.loader import SkillLoader
 
 if TYPE_CHECKING:
     from kyle_agent.core.llm.base import LLMProvider
+    from kyle_agent.core.llm.router import ModelRouter
     from kyle_agent.core.runner import AgentRunner
 
 SESSION_NOT_FOUND = -32010
@@ -36,18 +37,20 @@ def _now() -> str:
 
 
 class SessionManager:
-    # 初始化会话管理器，接入文件存储、runner 工厂、事件总线和可选的 LLM provider（用于手动压缩）
+    # 初始化会话管理器，接入文件存储、runner 工厂、事件总线、可选 LLM provider 与模型路由器
     def __init__(
         self,
         store: SessionStore,
         runner_factory: Callable[[], AgentRunner],
         bus: EventBus,
         provider: LLMProvider | None = None,
+        router: ModelRouter | None = None,
     ) -> None:
         self._store = store
         self._runner_factory = runner_factory
         self._bus = bus
         self._provider = provider
+        self._router = router
         self._sessions: dict[str, Session] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._skill_loader = SkillLoader()
@@ -172,7 +175,7 @@ class SessionManager:
             from kyle_agent.core.compact.compactor import Compactor
             messages = self._store.read_messages(sid)
             session_dir = self._store.session_dir(sid)
-            compactor = Compactor(self._bus, session_dir, sid)
+            compactor = Compactor(self._bus, session_dir, sid, router=self._router)
             result = await compactor.compact_messages(messages, self._provider, focus=focus)
             if result is None:
                 raise HandlerError(-32021, "compaction failed or not beneficial")

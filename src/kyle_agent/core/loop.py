@@ -14,6 +14,7 @@ from kyle_agent.core.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from kyle_agent.core.compact.compactor import Compactor
+    from kyle_agent.core.llm.router import ModelRouter
     from kyle_agent.core.permissions.manager import PermissionManager
 
 
@@ -35,6 +36,7 @@ class AgentLoop:
         compactor: Compactor | None = None,
         compact_threshold: float = 0.80,
         session_id: str = "",
+        router: ModelRouter | None = None,
     ) -> None:
         self._provider = provider
         self._registry = registry
@@ -43,6 +45,7 @@ class AgentLoop:
         self._compactor = compactor
         self._compact_threshold = compact_threshold
         self._session_id = session_id
+        self._router = router
 
     # 驱动 plan→act→observe 循环直到上下文终止；CancelledError 向上传播
     async def run(self, context: ExecutionContext) -> None:
@@ -53,6 +56,22 @@ class AgentLoop:
             )
 
             # [plan] call LLM — API errors terminate the run
+            # 模型路由:按步次/历史特征选档,未配置 router 时保持原行为
+            model_override: str | None = None
+            strategy = "static"
+            if self._router is not None:
+                decision = self._router.select(
+                    step=context.step,
+                    messages=context.messages,
+                    tool_schemas=self._registry.tool_schemas(),
+                    purpose="chat",
+                )
+                model_override = decision.model
+                strategy = self._router.strategy
+                log.debug(
+                    "router selected model=%s reason=%s run_id=%s step=%d",
+                    decision.model, decision.reason, context.run_id, context.step,
+                )
             try:
                 response = await self._provider.chat(
                     messages=context.messages,
@@ -66,6 +85,8 @@ class AgentLoop:
                         "When the goal is fully achieved, respond with a final answer "
                         "and do not call any more tools."
                     ),
+                    model=model_override,
+                    strategy=strategy,
                 )
             except asyncio.CancelledError:
                 context.mark_failed("cancelled")

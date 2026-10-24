@@ -12,6 +12,7 @@ from kyle_agent.core.events.bus import EventBus
 if TYPE_CHECKING:
     from kyle_agent.core.context import ExecutionContext
     from kyle_agent.core.llm.base import LLMProvider
+    from kyle_agent.core.llm.router import ModelRouter
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +64,18 @@ class CompactionResult:
 
 
 class Compactor:
-    # 初始化压缩器，绑定事件总线、session 目录和 session ID
-    def __init__(self, bus: EventBus, session_dir: Path, session_id: str) -> None:
+    # 初始化压缩器，绑定事件总线、session 目录、session ID 和可选模型路由器
+    def __init__(
+        self,
+        bus: EventBus,
+        session_dir: Path,
+        session_id: str,
+        router: ModelRouter | None = None,
+    ) -> None:
         self._bus = bus
         self._session_dir = session_dir
         self._session_id = session_id
+        self._router = router
 
     # 压缩 ExecutionContext.messages，就地替换消息列表并写 summary 文件
     async def compact(
@@ -125,6 +133,16 @@ class Compactor:
             {"role": "user", "content": f"{prompt}\n\n---\n\n{history_text}"}
         ]
 
+        # 压缩摘要属于执行类工作,路由启用时用便宜档模型
+        model_override: str | None = None
+        strategy = "static"
+        if self._router is not None:
+            decision = self._router.select(
+                step=0, messages=messages, tool_schemas=[], purpose="compact"
+            )
+            model_override = decision.model
+            strategy = self._router.strategy
+
         try:
             silent_bus = _Bus()
             response = await provider.chat(
@@ -134,6 +152,8 @@ class Compactor:
                 run_id="compact",
                 step=0,
                 system="You are a helpful assistant that summarizes conversations.",
+                model=model_override,
+                strategy=strategy,
             )
         except Exception:
             logger.exception("compactor: LLM call failed, skipping compaction")

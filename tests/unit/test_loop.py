@@ -35,6 +35,8 @@ class _MockProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         if self._exc is not None:
             raise self._exc
