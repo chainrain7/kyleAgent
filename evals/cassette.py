@@ -18,8 +18,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from kyle_agent.core.bus.events import LlmModelSelectedEvent, LlmUsageEvent
 from kyle_agent.core.events.bus import EventBus
 from kyle_agent.core.llm.types import LlmResponse, ToolCallBlock, UsageStats
+from kyle_agent.core.llm.provider import _context_window
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +143,30 @@ class CassetteProvider:
             "cassette replay pos=%d/%d model=%s stop=%s",
             self._pos, len(self._entries), entry.model, entry.stop_reason,
         )
+        # 回放录制事件(model_selected/usage),让回放报告保留真实成本口径
+        now = datetime.now(UTC).isoformat()
+        await bus.publish(
+            LlmModelSelectedEvent(
+                run_id=run_id, model=entry.model or self._model,
+                strategy=entry.strategy or "static", ts=now,
+            )
+        )
+        usage = entry.usage
+        if usage:
+            input_t = int(usage.get("input_tokens", 0) or 0)
+            await bus.publish(
+                LlmUsageEvent(
+                    run_id=run_id,
+                    input_tokens=input_t,
+                    output_tokens=int(usage.get("output_tokens", 0) or 0),
+                    cache_read_input_tokens=int(usage.get("cache_read_input_tokens", 0) or 0),
+                    cache_creation_input_tokens=int(
+                        usage.get("cache_creation_input_tokens", 0) or 0
+                    ),
+                    context_pct=input_t / _context_window(entry.model or self._model),
+                    ts=now,
+                )
+            )
         return to_response(entry)
 
 

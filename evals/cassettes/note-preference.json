@@ -1,0 +1,55 @@
+{
+ "task_id": "note-preference",
+ "version": 1,
+ "recorded_at": "2026-10-24T15:25:56.304042+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll save that preference to the session notes.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_yGQDG897qB4GOQCSIU612320",
+     "name": "note_save",
+     "input": {
+      "content": "用户偏好：本项目的部署一律使用 docker（所有部署工作都应基于 Docker/Docker Compose 进行，不使用其他部署方式）。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "216a3ad7-66af-4a48-9a4e-8f35d2b0039e"
+    }
+   ],
+   "usage": {
+    "input_tokens": 189,
+    "output_tokens": 75,
+    "cache_read_input_tokens": 1536,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "已记住并保存到会话笔记中：\n\n**偏好内容**：本项目部署一律使用 docker —— 所有部署相关工作都应基于 Docker（如 Dockerfile / docker-compose）进行，不采用其他部署方式。\n\n后续涉及部署、环境搭建或发布流程时，我会默认按 Docker 方案来准备（例如编写 Dockerfile、docker-compose 配置、构建与运行命令），如需偏离会先与你确认。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "30b32f6f-707b-4e22-9f04-c20726ca6e26"
+    }
+   ],
+   "usage": {
+    "input_tokens": 150,
+    "output_tokens": 88,
+    "cache_read_input_tokens": 1664,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

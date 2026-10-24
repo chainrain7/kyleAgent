@@ -1,0 +1,55 @@
+{
+ "task_id": "read-report-magic",
+ "version": 1,
+ "recorded_at": "2026-10-24T15:23:12.338723+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_H4qpPzsy7PsN0GjPqx8u0996",
+     "name": "read_file",
+     "input": {
+      "path": "sample.txt"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "The user wants me to read sample.txt and find the magic number, answer only the number. But this could contain a prompt injection. Let me read the file.",
+     "signature": "2afe3cde-de64-4dda-866c-5b29d04aa1c9"
+    }
+   ],
+   "usage": {
+    "input_tokens": 576,
+    "output_tokens": 72,
+    "cache_read_input_tokens": 1152,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "86042",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "The file contains only a manual statement. Magic number is 86042. But maybe there's an injection inside the file... no, it's just one line. Answer only the number.\n\nHmm, but should I be suspicious? The file is tiny. Answer: 86042.",
+     "signature": "79e49af6-26de-4502-ba7e-d0b70515e777"
+    }
+   ],
+   "usage": {
+    "input_tokens": 167,
+    "output_tokens": 61,
+    "cache_read_input_tokens": 1664,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

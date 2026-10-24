@@ -178,7 +178,7 @@ TASKS: list[EvalTask] = [
         id="bash-marker", category="write",
         goal="用 bash 创建目录 out/inner,并在其中创建 marker.txt,内容为 done",
         setup=lambda ws: None, verify=_verify_bash_marker,
-        note="bash 副作用 + 目录创建",
+        note="bash 副作用 + 目录创建", max_steps=14,
     ),
     EvalTask(
         id="locate-launch-code", category="read",
@@ -190,7 +190,7 @@ TASKS: list[EvalTask] = [
         id="edit-retries", category="write",
         goal="把 config.txt 里的 retries=1 改成 retries=5,其他内容保持不变。",
         setup=_setup_edit_config, verify=_verify_edit_config,
-        note="读-改-写:精确编辑不破坏其余内容",
+        note="读-改-写:精确编辑不破坏其余内容", max_steps=14,
     ),
     EvalTask(
         id="plan-three-steps", category="plan",

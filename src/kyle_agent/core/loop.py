@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,22 @@ log = logging.getLogger(__name__)
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+# 默认系统提示:职责说明 + 运行平台/shell 提示(模型据此写对命令语法)
+def _default_system_prompt() -> str:
+    platform_hint = (
+        "The bash tool runs commands via cmd.exe on Windows."
+        if sys.platform == "win32"
+        else "The bash tool runs POSIX shell commands."
+    )
+    return (
+        "You are a helpful AI assistant. "
+        "Use the available tools to complete the user's goal. "
+        f"{platform_hint} "
+        "When the goal is fully achieved, respond with a final answer "
+        "and do not call any more tools."
+    )
 
 
 class AgentLoop:
@@ -79,12 +96,7 @@ class AgentLoop:
                     bus=self._bus,
                     run_id=context.run_id,
                     step=context.step,
-                    system=context.system_prompt(
-                        "You are a helpful AI assistant. "
-                        "Use the available tools to complete the user's goal. "
-                        "When the goal is fully achieved, respond with a final answer "
-                        "and do not call any more tools."
-                    ),
+                    system=context.system_prompt(_default_system_prompt()),
                     model=model_override,
                     strategy=strategy,
                 )

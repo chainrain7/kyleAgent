@@ -148,7 +148,7 @@ class PermissionManager:
         return allowed, raw
 
     # 预授一批工具的 session 级 always 权限(评测 harness 等无人值守场景使用)
-    def preapprove(self, session_id: str, tool_names: "Iterable[str]") -> None:
+    def preapprove(self, session_id: str, tool_names: Iterable[str]) -> None:
         for name in tool_names:
             self._session_always[(session_id, name)] = "allow"
 
