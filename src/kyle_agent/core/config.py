@@ -34,6 +34,8 @@ class AgentConfig:
 @dataclass
 class LlmConfig:
     default_model: str = _DEFAULT_MODEL
+    # provider 后端:anthropic(默认,兼容 Anthropic 端点)或 openai(OpenAI 兼容端点)
+    provider: str = "anthropic"
     # 路由策略:static=恒用 default_model;rule_based=规划/执行分档(改造 A)
     router: str = "static"  # "static" | "rule_based"
     # rule_based 的两个档位;留空回退 default_model
@@ -177,10 +179,17 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
         if not isinstance(llm, dict):
             raise SystemExit("Config error: [llm] must be a table")
         unknown_llm: set[str] = set(llm.keys()) - {
-            "default_model", "router", "planning_model", "execution_model",
+            "default_model", "provider", "router", "planning_model", "execution_model",
         }
         if unknown_llm:
             raise SystemExit(f"Unknown [llm] keys: {', '.join(sorted(unknown_llm))}")
+        if "provider" in llm:
+            val = llm["provider"]
+            if val not in ("anthropic", "openai"):
+                raise SystemExit(
+                    "Config error: llm.provider must be 'anthropic' or 'openai'"
+                )
+            config.llm.provider = val
         if "default_model" in llm:
             val = llm["default_model"]
             if not isinstance(val, str):
@@ -360,6 +369,15 @@ def _apply_env(config: KyleConfig) -> None:
             raise SystemExit(
                 f"Config error: KYLE_MAX_STEPS must be an integer, got: {max_steps_str!r}"
             )
+
+    llm_provider = os.environ.get("KYLE_LLM_PROVIDER")
+    if llm_provider is not None:
+        if llm_provider not in ("anthropic", "openai"):
+            raise SystemExit(
+                f"Config error: KYLE_LLM_PROVIDER must be anthropic or openai, "
+                f"got: {llm_provider!r}"
+            )
+        config.llm.provider = llm_provider
 
     default_model = os.environ.get("KYLE_LLM_DEFAULT_MODEL")
     if default_model is not None:

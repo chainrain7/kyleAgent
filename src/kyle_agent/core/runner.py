@@ -13,7 +13,7 @@ from kyle_agent.core.context import ExecutionContext
 from kyle_agent.core.events.bus import EventBus, EventHandler
 from kyle_agent.core.events.writer import EventWriter
 from kyle_agent.core.llm.base import LLMProvider
-from kyle_agent.core.llm.provider import AnthropicProvider
+from kyle_agent.core.llm.factory import build_provider
 from kyle_agent.core.llm.router import build_router
 from kyle_agent.core.loop import AgentLoop
 from kyle_agent.core.mcp.server import McpServerManager
@@ -190,8 +190,8 @@ class AgentRunner:
 
             cancelled = False
             try:
-                provider: LLMProvider = self._provider or AnthropicProvider(
-                    self._config.llm.default_model
+                provider: LLMProvider = self._provider or build_provider(
+                    self._config.llm
                 )
                 if self._trace is not None:
                     provider = TracingProvider(
