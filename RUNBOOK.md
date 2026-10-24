@@ -93,3 +93,21 @@ tail -f ~/.kyle/logs/core.log
 | `core not running` | 未启动守护进程 | `uv run kyle-core` |
 | `Address already in use` | 端口被其他进程占用 | `KYLE_PORT=8000 uv run kyle-core` |
 | `Config error: KYLE_PORT must be an integer` | `.env` 或环境变量中端口值非整数 | 检查 `KYLE_PORT` 的值 |
+
+---
+
+## 会话恢复（TUI 断线重连）
+
+TUI 掉线或重启后自动调用 `session.resume`：daemon 从 `~/.kyle/sessions/` 磁盘扫描
+最近一个未关闭 session 重新载入内存，返回 `session_id` 与 `last_run_id`；客户端以
+`event.subscribe(replay_from_run=last_run_id)` 回放补齐事件。daemon 未重启时运行中的
+任务不受影响。显式恢复指定 session：`session.resume {"session_id": "sess-..."}`。
+
+## 运行指标统计
+
+```bash
+uv run python scripts/run_metrics.py <events.jsonl 路径或 run 目录> [--compare <另一份>]
+```
+
+输出 Markdown 报告：run 状态、LLM 调用与按模型分组的 token 用量、工具成败与耗时分布、
+compact 次数；`--compare` 生成前后对比表（模型路由/压缩策略改动的量化依据）。

@@ -17,6 +17,10 @@ kyleAgent 是一个用 Python 3.12 实现的本地 AI Agent 运行时：采用 d
 - **Skills**：Markdown 声明式技能（frontmatter + 正文 system prompt），`/` 前缀调用，支持 `$ARGUMENTS` 参数替换与工具白名单
 - **Subagents**：`spawn_agent` 工具派生隔离上下文的子 Agent，支持前台阻塞与后台并行（`agent_result` 查询），角色（planner / executor / reviewer）用 TOML 配置，嵌套深度上限 2
 - **MCP 接入**：`config.toml` 声明 MCP server（stdio / TCP 两种传输），启动时自动发现工具并以 `servername__toolname` 命名注册
+- **模型路由**：`llm.router = "rule_based"` 时按步次/目标复杂度分档调度——规划步与复杂任务走 `planning_model`，执行步/简单问答/compact 摘要走 `execution_model`；每次选择经 `llm.model_selected` 事件上报，trace 可核验
+- **多后端接入**：`llm.provider = "anthropic" | "openai"`；OpenAI 兼容端点（DeepSeek `/v1`、vLLM、Ollama 等）的消息格式翻译在 provider 边界完成，核心循环零感知
+- **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
+- **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
 - **Textual TUI**：主前端，实时渲染 LLM 流、可折叠工具调用块、内联权限审批卡片、斜杠命令自动补全、上下文水位显示
 
 ## 架构
@@ -98,8 +102,11 @@ format = "text"            # "text" | "json"
 max_steps = 20             # 单次 run 的最大循环步数
 
 [llm]
+provider      = "anthropic"     # "anthropic" | "openai"（OpenAI 兼容端点）
 default_model = "claude-sonnet-4-6"
-router        = "static"   # "static" | "rule_based" | "cost_budget"
+router        = "static"        # "static" | "rule_based"（规划/执行分档）
+planning_model  = ""            # rule_based 规划档；留空回退 default_model
+execution_model = ""            # rule_based 执行档；留空回退 default_model
 
 [trace]
 enabled             = true
@@ -131,7 +138,11 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `logging.file` | str | `~/.kyle/logs/core.log` | `KYLE_LOG_FILE` |
 | `logging.format` | str | `text` | `KYLE_LOG_FORMAT` |
 | `agent.max_steps` | int | `20` | `KYLE_MAX_STEPS` |
+| `llm.provider` | str | `anthropic` | `KYLE_LLM_PROVIDER` |
 | `llm.default_model` | str | `claude-sonnet-4-6` | `KYLE_LLM_DEFAULT_MODEL` |
+| `llm.router` | str | `static` | — |
+| `llm.planning_model` | str | ``（回退默认） | `KYLE_LLM_PLANNING_MODEL` |
+| `llm.execution_model` | str | ``（回退默认） | `KYLE_LLM_EXECUTION_MODEL` |
 | `trace.enabled` | bool | `true` | `KYLE_TRACE_ENABLED` |
 | `trace.file` | str | `~/.kyle/traces/daemon.jsonl` | `KYLE_TRACE_FILE` |
 | `trace.include_llm_payload` | bool | `true` | `KYLE_TRACE_INCLUDE_LLM_PAYLOAD` |
@@ -140,7 +151,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `compaction.tool_result_limit` | int | `8000` | `KYLE_COMPACT_TOOL_LIMIT` |
 | `compaction.tool_result_keep` | int | `4000` | `KYLE_COMPACT_TOOL_KEEP` |
 
-另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 LLM 调用的必要凭据。
+另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 Anthropic 后端的必要凭据；`llm.provider = "openai"` 时改用 `OPENAI_API_KEY`（可选 `OPENAI_BASE_URL`，如 `https://api.deepseek.com/v1`）。`web_search` 的 JSON 后端用 `KYLE_SEARCH_API_KEY` + `KYLE_SEARCH_ENDPOINT` 配置，不配置则使用免 key 的 DuckDuckGo 后端。
 
 配置目录总览：
 
@@ -179,7 +190,7 @@ uv run kyle-tui         # TUI 多轮会话（主前端）
 | `n` / `3` | deny once | 本次拒绝 |
 | `d` / `4` | always deny | 本 session 拒绝并持久化 |
 
-`read_file`、`list_dir`、`note_save` 默认放行；`bash`、`write_file` 与未登记工具默认询问。`bash` 命令疑似操作 cwd 之外路径时（绝对路径、`~`、`..`、`$HOME`、`cd` 等）无条件强制询问。审批超时（默认 60 秒）视为拒绝。
+`read_file`、`list_dir`、`note_save` 默认放行；`bash`、`write_file`、`web_search` 与未登记工具默认询问（`web_search` 只读但把查询外发到第三方服务，与 bash 同级对待）。`bash` 命令疑似操作 cwd 之外路径时（绝对路径、`~`、`..`、`$HOME`、`cd` 等）无条件强制询问。审批超时（默认 60 秒）视为拒绝。
 
 ### 手动压缩上下文
 
@@ -190,6 +201,14 @@ TUI 中输入：
 ```
 
 daemon 将当前 `thread.jsonl` 压缩为一份结构化交接摘要（原始目标 / 已完成步骤 / 关键发现 / 文件状态 / 剩余 TODO / 关键数据），覆盖写回 thread（原文件备份为 `thread_<ts>.jsonl.bak`），摘要另存为 `summary_<ts>.md`。
+
+### 断线重连与会话恢复
+
+TUI 掉线或重启后会自动执行 `session.resume`：从磁盘找回最近一个活跃 session 接回对话，并以该 session 最近一次 run 为锚点回放事件、补齐断线期间错过的时间线；daemon 全程无需重启。也可以显式指定回放锚点：
+
+```bash
+uv run kyle-tui --replay <run_id>
+```
 
 ### 调用 Skill
 
@@ -315,7 +334,12 @@ uv run pytest tests/integration -v     # 集成测试（自动拉起真实 daemo
 # 修改 bus 模型（src/kyle_agent/core/bus/）后，重新生成并校验协议文档
 uv run python scripts/gen_protocol_doc.py
 uv run python scripts/gen_protocol_doc.py --check
+
+# 单次 run 的指标统计（LLM 调用/ token/工具分布），支持前后对比
+uv run python scripts/run_metrics.py <events.jsonl> --compare <other.jsonl>
 ```
+
+GitHub Actions（`.github/workflows/ci.yml`）在 ubuntu / macos / windows 三平台矩阵上执行全部质量门禁，push 到 main 或提 PR 自动触发。
 
 ## 项目结构
 
