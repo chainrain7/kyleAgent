@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from kyle_agent.core.bus.events import ContextCompactedEvent
+from kyle_agent.core.compact.tokens import count_messages, count_text
 from kyle_agent.core.events.bus import EventBus
 
 if TYPE_CHECKING:
@@ -120,9 +121,8 @@ class Compactor:
     ) -> CompactionResult | None:
         from kyle_agent.core.events.bus import EventBus as _Bus
 
-        original_estimate = sum(
-            len(str(m.get("content", ""))) for m in messages
-        ) // 4  # 粗略 token 估算（字符数 / 4）
+        # 真实 BPE token 计数(cl100k_base),替代早期 char/4 粗估
+        original_estimate = count_messages(messages)
 
         history_text = _messages_to_text(messages)
         prompt = _COMPACT_PROMPT
@@ -164,7 +164,9 @@ class Compactor:
             logger.warning("compactor: LLM returned empty summary, skipping compaction")
             return None
 
-        summary_tokens = response.usage.output_tokens if response.usage else len(summary_text) // 4
+        summary_tokens = (
+            response.usage.output_tokens if response.usage else count_text(summary_text)
+        )
 
         return CompactionResult(
             summary_text=summary_text,
