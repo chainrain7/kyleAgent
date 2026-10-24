@@ -25,6 +25,8 @@ class _EndTurnProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         return LlmResponse(stop_reason="end_turn", text="done")
 
@@ -44,6 +46,8 @@ class _LoopingProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         self._call += 1
         tc = ToolCallBlock(id=f"t{self._call}", name="unknown_tool", input={})
@@ -68,6 +72,8 @@ class _CapturingProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
         self.messages = [dict(m) for m in messages]
         self.system = system
@@ -281,6 +287,8 @@ async def test_session_registers_note_save_tool(tmp_path: Path) -> None:
             *,
             step: int = 0,
             system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
         ) -> LlmResponse:
             self.calls += 1
             if self.calls == 1:
@@ -337,6 +345,8 @@ async def test_auto_compact_rewrites_thread(tmp_path: Path) -> None:
             *,
             step: int = 0,
             system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
         ) -> LlmResponse:
             self.calls += 1
             if self.calls == 1:

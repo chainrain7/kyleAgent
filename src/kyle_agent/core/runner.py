@@ -14,6 +14,7 @@ from kyle_agent.core.events.bus import EventBus, EventHandler
 from kyle_agent.core.events.writer import EventWriter
 from kyle_agent.core.llm.base import LLMProvider
 from kyle_agent.core.llm.provider import AnthropicProvider
+from kyle_agent.core.llm.router import build_router
 from kyle_agent.core.loop import AgentLoop
 from kyle_agent.core.mcp.server import McpServerManager
 from kyle_agent.core.memory.loader import load_context_file
@@ -220,13 +221,16 @@ class AgentRunner:
                     if session is not None and store is not None
                     else run_path
                 )
-                compactor = Compactor(bus, session_dir, session_id_str)
+                # 模型路由(static 保持旧行为;rule_based 见 llm/router.py)
+                router = build_router(self._config.llm)
+                compactor = Compactor(bus, session_dir, session_id_str, router=router)
                 loop = AgentLoop(
                     provider, registry, bus,
                     permission_manager=self._permission_manager,
                     compactor=compactor,
                     compact_threshold=self._config.compaction.auto_threshold,
                     session_id=session_id_str,
+                    router=router,
                 )
                 await loop.run(context)
             except asyncio.CancelledError:

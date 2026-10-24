@@ -83,6 +83,9 @@ async def _chat(
     provider: AnthropicProvider,
     messages: list[dict[str, object]] | None = None,
     tool_schemas: list[dict[str, object]] | None = None,
+    *,
+    model_override: str | None = None,
+    strategy: str = "static",
 ) -> tuple[LlmResponse, list[BaseModel]]:
     collected: list[BaseModel] = []
     bus = EventBus()
@@ -96,6 +99,8 @@ async def _chat(
         tool_schemas=tool_schemas or [],
         bus=bus,
         run_id="r1",
+        model=model_override,
+        strategy=strategy,
     )
     return result, collected
 
@@ -211,3 +216,18 @@ async def test_no_tokens_when_response_is_empty() -> None:
     tokens = [e for e in events if e.type == "llm.token"]  # type: ignore[attr-defined]
     assert tokens == []
     assert result.text == ""
+
+
+# 功能：chat(model=...) 覆盖参数生效——事件与请求体都使用覆盖模型
+# 设计：模型路由器按调用注入模型；注入 mock client 捕获 stream kwargs，
+#       断言 kwargs 的 model 与 LlmModelSelectedEvent 一致，防止只改事件不改请求
+async def test_model_override_applies_to_request_and_event() -> None:
+    provider, client = _make_provider()
+    _, events = await _chat(
+        provider, model_override="other-model", strategy="rule_based"
+    )
+    call_kwargs = client.messages.stream.call_args.kwargs
+    assert call_kwargs["model"] == "other-model"
+    sel = next(e for e in events if e.type == "llm.model_selected")  # type: ignore[attr-defined]
+    assert sel.model == "other-model"  # type: ignore[attr-defined]
+    assert sel.strategy == "rule_based"  # type: ignore[attr-defined]

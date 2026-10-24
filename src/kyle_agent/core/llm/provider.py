@@ -68,9 +68,15 @@ class AnthropicProvider:
         *,
         step: int = 0,
         system: str | None = None,
+        model: str | None = None,
+        strategy: str = "static",
     ) -> LlmResponse:
+        # 模型路由器按调用注入模型；未指定时使用 provider 默认模型
+        effective_model = model or self._model
         await bus.publish(
-            LlmModelSelectedEvent(run_id=run_id, model=self._model, strategy="static", ts=_now())
+            LlmModelSelectedEvent(
+                run_id=run_id, model=effective_model, strategy=strategy, ts=_now()
+            )
         )
 
         system_blocks: list[dict[str, object]] = [
@@ -88,7 +94,7 @@ class AnthropicProvider:
             tools = tools[:-1] + [last]
 
         kwargs: dict[str, object] = {
-            "model": self._model,
+            "model": effective_model,
             "max_tokens": 8192,
             "system": system_blocks,
             "messages": messages,
@@ -132,7 +138,7 @@ class AnthropicProvider:
         # 命中缓存的部分不计入 input_tokens，真实上下文占用必须三者相加，否则水位被严重低估
         context_pct = (
             usage.input_tokens + cache_read + cache_create
-        ) / _context_window(self._model)
+        ) / _context_window(effective_model)
 
         await bus.publish(
             LlmUsageEvent(
