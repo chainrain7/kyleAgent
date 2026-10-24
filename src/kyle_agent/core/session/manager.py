@@ -188,6 +188,44 @@ class SessionManager:
                 saved_tokens=max(0, result.original_token_estimate - result.summary_tokens),
             )
 
+    # 恢复 session：显式 id 或取磁盘上最近活跃的 session，重新载入内存索引
+    # 场景：TUI 重启/断线重连后接回同一会话，daemon 未重启时运行中任务不受影响
+    async def resume(self, sid: str = "") -> Session:
+        if sid:
+            found: Session = self._store.read_meta(sid)  # 不存在时抛 FileNotFoundError
+        else:
+            latest = self._latest_active_session()
+            if latest is None:
+                raise HandlerError(SESSION_NOT_FOUND, "no active session to resume")
+            found = latest
+        if found.id not in self._sessions:
+            self._sessions[found.id] = found
+            self._locks.setdefault(found.id, asyncio.Lock())
+        await self._bus.publish(
+            SessionResumedEvent(session_id=found.id, ts=_now())
+        )
+        return found
+
+    # 扫描存储目录，返回最近更新的未关闭 session；无候选返回 None
+    def _latest_active_session(self) -> Session | None:
+        best: Session | None = None
+        root = self._store.root
+        if not root.exists():
+            return None
+        import json as _json
+
+        for meta_path in root.glob("*/meta.json"):
+            try:
+                data = _json.loads(meta_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if data.get("status") == "closed":
+                continue
+            candidate = Session.from_dict(data)
+            if best is None or candidate.updated_at > best.updated_at:
+                best = candidate
+        return best
+
     # 读取指定 session 的完整 thread 历史
     async def get_history(self, sid: str) -> list[dict[str, Any]]:
         self._get_session(sid)

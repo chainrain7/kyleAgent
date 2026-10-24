@@ -318,3 +318,38 @@ async def test_protocol_error_paths(mock_stack: dict[str, object]) -> None:
     except asyncio.CancelledError:
         pass
     await client.close()
+
+
+# 功能：session.resume RPC 返回既有 session 与最近 run_id,支撑 TUI 断线重连恢复现场
+# 设计：跑完一个 run 后用 resume("") 接回,断言 session_id 一致且 last_run_id 是
+#       刚完成的 run——客户端据此做 replay_from_run 补齐错过的事件
+async def test_session_resume_returns_last_run(mock_stack: dict[str, object]) -> None:
+    port = int(mock_stack["core_port"])
+    client = _client(port)
+    await client.connect()
+    loop_task = asyncio.create_task(client.run_event_loop())
+
+    async def approve(event: dict) -> None:
+        if event.get("type") == "permission.requested":
+            asyncio.create_task(client.send_command("permission.respond", {
+                "tool_use_id": event["tool_use_id"], "decision": "allow_once",
+            }))
+
+    client.on_event(approve)
+    await client.send_command("event.subscribe", {"topics": ["*"], "scope": "global"})
+    created = await client.send_command("session.create", {"mode": "chat"})
+    sid = created["session_id"]
+    run1 = await client.send_command(
+        "session.send_message", {"session_id": sid, "content": "run echo"}
+    )
+
+    resumed = await client.send_command("session.resume", {})
+    assert resumed["session_id"] == sid
+    assert resumed["last_run_id"] == run1["run_id"]
+
+    loop_task.cancel()
+    try:
+        await loop_task
+    except asyncio.CancelledError:
+        pass
+    await client.close()

@@ -60,6 +60,19 @@ class SessionSendMessageResult(BaseModel):
     run_id: str
 
 
+class SessionResumeCommand(BaseModel):
+    type: Literal["session.resume"] = "session.resume"
+    # 空字符串表示恢复最近一个活跃 session(按 updated_at 取最新)
+    session_id: str = ""
+
+
+class SessionResumeResult(BaseModel):
+    session_id: str
+    status: SessionStatus
+    # 该 session 最近一次 run 的 id,供客户端 replay_from_run 补齐事件
+    last_run_id: str | None = None
+
+
 class SessionGetHistoryCommand(BaseModel):
     type: Literal["session.get_history"] = "session.get_history"
     session_id: str
@@ -106,6 +119,7 @@ Command = Annotated[
     | AgentRunCommand
     | EventSubscribeCommand
     | SessionCreateCommand
+    | SessionResumeCommand
     | SessionSendMessageCommand
     | SessionGetHistoryCommand
     | SessionCloseCommand

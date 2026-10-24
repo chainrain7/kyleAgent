@@ -31,6 +31,8 @@ from kyle_agent.core.bus.commands import (
     SessionCreateResult,
     SessionGetHistoryCommand,
     SessionGetHistoryResult,
+    SessionResumeCommand,
+    SessionResumeResult,
     SessionSendMessageCommand,
     SessionSendMessageResult,
 )
@@ -119,6 +121,17 @@ class CoreApp:
         cmd = SessionSendMessageCommand.model_validate(params)
         run_id = await self._sessions.send_message(cmd.session_id, cmd.content)
         return SessionSendMessageResult(run_id=run_id)
+
+    # 恢复既有 session（显式 id 或最近活跃），返回 session_id 与最近 run_id
+    async def _session_resume_handler(self, params: dict[str, Any]) -> SessionResumeResult:
+        assert self._sessions is not None
+        cmd = SessionResumeCommand.model_validate(params)
+        session = await self._sessions.resume(cmd.session_id)
+        return SessionResumeResult(
+            session_id=session.id,
+            status=session.status,
+            last_run_id=session.run_ids[-1] if session.run_ids else None,
+        )
 
     # 返回 session 的完整 Anthropic messages 历史
     async def _session_history_handler(self, params: dict[str, Any]) -> SessionGetHistoryResult:
@@ -268,6 +281,7 @@ class CoreApp:
         server.register("agent.run", self._agent_run_handler)
         server.register("event.subscribe", self._subscribe_handler)
         server.register("session.create", self._session_create_handler)
+        server.register("session.resume", self._session_resume_handler)
         server.register("session.send_message", self._session_send_handler)
         server.register("session.get_history", self._session_history_handler)
         server.register("session.close", self._session_close_handler)
