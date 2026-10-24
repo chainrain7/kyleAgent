@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from kyle_agent.core.bus.envelope import (
     INTERNAL_ERROR,
+    INVALID_PARAMS,
     INVALID_REQUEST,
     METHOD_NOT_FOUND,
     PARSE_ERROR,
@@ -59,6 +60,8 @@ class SocketServer:
         self._broadcaster = broadcaster
         self._trace = trace
         self._active_writers: set[asyncio.StreamWriter] = set()
+        # 每行命令的 handler 任务强引用：不保存引用的任务可能被 GC 中途回收，响应静默丢失
+        self._line_tasks: set[asyncio.Task[None]] = set()
 
     # 注册一个方法名对应的命令处理函数
     def register(self, method: str, handler: CommandHandler) -> None:
@@ -135,8 +138,11 @@ class SocketServer:
                 return
 
             # 每条命令独立作为 task 执行，避免长时间运行的 handler（如 session.send_message）
-            # 阻塞读循环，使 permission.respond 等并发命令能被及时处理
-            asyncio.create_task(self._handle_line(line, writer))
+            # 阻塞读循环，使 permission.respond 等并发命令能被及时处理；
+            # 任务必须保存强引用并在完成后移除，否则可能被事件循环 GC 回收（asyncio 文档要求）
+            line_task: asyncio.Task[None] = asyncio.create_task(self._handle_line(line, writer))
+            self._line_tasks.add(line_task)
+            line_task.add_done_callback(self._line_tasks.discard)
 
     # 解析单行 JSON-RPC 请求并调用对应 handler，将结果或错误写回客户端
     async def _handle_line(self, line: bytes, writer: asyncio.StreamWriter) -> None:
@@ -180,9 +186,10 @@ class SocketServer:
             await self._send(writer, make_error(req.id, e.code, str(e), e.data))
             return
         except ValidationError as e:
+            # 信封合法、params 内容不合法 → -32602 Invalid params（JSON-RPC 2.0）
             await self._send(
                 writer,
-                make_error(req.id, INVALID_REQUEST, "Invalid params", str(e)),
+                make_error(req.id, INVALID_PARAMS, "Invalid params", str(e)),
             )
             return
         except Exception as e:

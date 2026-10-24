@@ -12,6 +12,32 @@ from kyle_agent.core.config import KyleConfig
 _PID_FILE = Path.home() / ".kyle" / "kyle-core.pid"
 
 
+# 判断进程是否存活；Windows 上 os.kill(pid, 0) 不是探测（会抛 WinError 87 或直接杀进程），
+# 必须用 Win32 API 查询退出码
+def _pid_alive(pid: int) -> bool:
+    if sys.platform == "win32":
+        import ctypes
+
+        process_query_limited_information = 0x1000
+        still_active = 259
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return exit_code.value == still_active
+            return False
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
 # 尝试连接 daemon，成功则正常返回，失败则抛出 ConnectionRefusedError/OSError
 async def _ping_check(config: KyleConfig) -> None:
     _r, w = await asyncio.open_connection(config.host, config.port)
@@ -25,11 +51,13 @@ def _running_pid() -> int | None:
         return None
     try:
         pid = int(_PID_FILE.read_text().strip())
-        os.kill(pid, 0)
-        return pid
-    except (ValueError, ProcessLookupError, PermissionError):
+    except ValueError:
         _PID_FILE.unlink(missing_ok=True)
         return None
+    if _pid_alive(pid):
+        return pid
+    _PID_FILE.unlink(missing_ok=True)
+    return None
 
 
 # 打印 daemon 当前状态（running / not running）
@@ -61,12 +89,15 @@ def cmd_core_start(config: KyleConfig) -> None:
     print(f"started  pid={proc.pid}  ({config.host}:{config.port})")
 
 
-# 向 daemon 发送 SIGTERM 停止进程，若未运行则提示
+# 停止 daemon；POSIX 发 SIGTERM 走优雅关闭，Windows 上 os.kill 等价 TerminateProcess（强制终止）
 def cmd_core_stop(config: KyleConfig) -> None:
     pid = _running_pid()
     if pid is None:
         print("not running")
         return
-    os.kill(pid, signal.SIGTERM)
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass  # 竞态：进程刚好已退出
     _PID_FILE.unlink(missing_ok=True)
     print(f"stopped  pid={pid}")

@@ -9,6 +9,19 @@ from typing import Any
 from kyle_agent.core.config import KyleConfig
 from kyle_agent.core.transport.socket_client import IpcError, SocketClient
 
+_DECISION_MAP: dict[str, str] = {
+    "y": "allow_once",
+    "a": "always_allow",
+    "n": "deny_once",
+    "d": "always_deny",
+}
+
+
+# 在线程池中读取 stdin，避免阻塞 socket event loop
+async def _readline(prompt: str) -> str:
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, input, prompt)
+
 
 class StdoutPrinter:
     # 接收 dict 格式的事件并将运行进度格式化打印到终端
@@ -82,6 +95,11 @@ async def _run_async(goal: str, config: KyleConfig) -> int:
             if event.get("status") != "success":
                 exit_code = 1
             finished.set()
+        elif event.get("type") == "permission.requested":
+            # 必须异步回复：读循环正在 await 本回调，内联 send_command 会自死锁
+            asyncio.create_task(
+                _handle_permission(client, event)
+            )
 
     client.on_event(on_event)
     loop_task = asyncio.create_task(client.run_event_loop())
@@ -90,7 +108,10 @@ async def _run_async(goal: str, config: KyleConfig) -> int:
         await client.send_command(
             "event.subscribe",
             {
-                "topics": ["run.*", "step.*", "tool.*", "llm.token", "llm.usage"],
+                "topics": [
+                    "run.*", "step.*", "tool.*", "llm.token", "llm.usage",
+                    "permission.*",
+                ],
                 "scope": "global",
             },
         )
@@ -111,6 +132,28 @@ async def _run_async(goal: str, config: KyleConfig) -> int:
 
     await client.close()
     return exit_code
+
+
+# 处理一次审批请求：TTY 下交互询问；stdin 已关闭（管道/EOF）时自动拒绝，避免干等审批超时
+async def _handle_permission(client: SocketClient, event: dict[str, Any]) -> None:
+    tool_use_id = str(event.get("tool_use_id", ""))
+    tool_name = str(event.get("tool_name", ""))
+    preview = str(event.get("param_preview", ""))
+    try:
+        line = await _readline(
+            f"[permission] {tool_name}  {preview}\n"
+            "y=allow once  a=always allow  n=deny  d=always deny > "
+        )
+        decision = _DECISION_MAP.get(line.strip().lower(), "deny_once")
+    except (EOFError, KeyboardInterrupt):
+        decision = "deny_once"
+    try:
+        await client.send_command(
+            "permission.respond",
+            {"tool_use_id": tool_use_id, "decision": decision},
+        )
+    except IpcError:
+        pass  # run 已结束等竞态下的响应失败可安全忽略
 
 
 # 执行 kyle run --goal "..." 命令

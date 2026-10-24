@@ -17,6 +17,10 @@ _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "claude-sonnet-4-6": 200_000,
     "claude-haiku-4-5-20251001": 200_000,
     "claude-opus-4-7": 200_000,
+    # DeepSeek Anthropic 兼容端点的常用模型，窗口 128K；未注册模型回退 200K 会高估水位
+    "deepseek-flash": 128_000,
+    "deepseek-chat": 128_000,
+    "deepseek-reasoner": 128_000,
 }
 
 _MAX_STREAM_RETRIES = 3

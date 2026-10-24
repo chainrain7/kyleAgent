@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from kyle_agent.core.config import KyleConfig
+from kyle_agent.core.config import get_config
 from kyle_agent.core.runner import AgentRunner
 
 # Load project .env so ANTHROPIC_API_KEY is available without going through get_config()
@@ -55,7 +55,9 @@ async def test_run_e2e_reads_file_and_succeeds(
     )
     runs_dir = tmp_path / "runs"
 
-    config = KyleConfig()
+    # get_config() 使 .env / KYLE_* 环境变量生效（如 ANTHROPIC_BASE_URL + 自定义模型名），
+    # 否则会用默认 claude 模型名去打兼容端点导致 400
+    config = get_config()
     config.agent.max_steps = 5
 
     runner = AgentRunner(config, runs_dir=runs_dir)

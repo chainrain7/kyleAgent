@@ -296,6 +296,14 @@ uv run kyle trace --raw                 # 原始 NDJSON 输出
 uv run kyle trace -f                    # 持续跟踪新记录
 ```
 
+## 常见问题
+
+**LLM 连接失败(Connection error),但浏览器/curl 能访问 API?**
+Python 的 HTTP 客户端会自动读取系统代理(Windows 注册表代理或 `HTTP_PROXY` 环境变量),Clash 等本地代理可能拦截 API 请求或无法回环 localhost。设置 `NO_PROXY=*`(或把 API 域名加入代理直连规则)后重启 `kyle-core`。
+
+**`kyle run` / `kyle chat` 里工具迟迟不执行?**
+`bash`、`write_file` 与未登记工具默认需要审批:交互终端按 `y`/`a`/`n`/`d`;管道或 EOF 场景会自动拒绝该次调用,超时上限由 `KYLE_PERMISSION_TIMEOUT_S` 控制。
+
 ## 开发
 
 ```bash
