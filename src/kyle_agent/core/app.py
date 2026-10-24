@@ -37,7 +37,6 @@ from kyle_agent.core.bus.commands import (
 from kyle_agent.core.bus.envelope import EventPushEnvelope
 from kyle_agent.core.config import KyleConfig, get_config
 from kyle_agent.core.events.bus import EventBus
-from kyle_agent.core.llm.provider import AnthropicProvider
 from kyle_agent.core.logging_setup import setup_logging
 from kyle_agent.core.mcp.server import McpServerManager
 from kyle_agent.core.permissions.manager import PermissionManager
@@ -234,8 +233,10 @@ class CoreApp:
         sessions_root = Path("~/.kyle/sessions").expanduser()
         store = SessionStore(sessions_root)
         assert self._config is not None
-        compact_provider = AnthropicProvider(self._config.llm.default_model)
+        from kyle_agent.core.llm.factory import build_provider
         from kyle_agent.core.llm.router import build_router
+
+        compact_provider = build_provider(self._config.llm)
         compact_router = build_router(self._config.llm)
 
         self._mcp_manager = McpServerManager()
