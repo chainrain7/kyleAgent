@@ -38,7 +38,9 @@ class ToolPolicy:
 
 
 DEFAULT_POLICIES: dict[str, ToolPolicy] = {
-    "bash":       ToolPolicy(default=PermissionDecision.ASK),
+    "bash":        ToolPolicy(default=PermissionDecision.ASK),
+    # 只读但外发查询到外部服务,与 bash 同级默认询问
+    "web_search":  ToolPolicy(default=PermissionDecision.ASK),
     "write_file": ToolPolicy(default=PermissionDecision.ASK),
     "read_file":  ToolPolicy(default=PermissionDecision.ALLOW),
     "list_dir":   ToolPolicy(default=PermissionDecision.ALLOW),
@@ -51,6 +53,7 @@ _UNKNOWN_TOOL_DEFAULT = PermissionDecision.ASK
 # bash 参数中展示用的关键字段映射
 _PREVIEW_KEY: dict[str, str] = {
     "bash":       "command",
+    "web_search": "query",
     "read_file":  "path",
     "write_file": "path",
     "list_dir":   "path",
