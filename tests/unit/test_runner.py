@@ -87,6 +87,7 @@ class _CapturingProvider:
 def _config(max_steps: int = 5) -> KyleConfig:
     cfg = KyleConfig()
     cfg.agent.max_steps = max_steps
+    cfg.memory.enabled = False  # 测试不触碰真实 ~/.kyle/memory.db
     return cfg
 
 

@@ -175,6 +175,7 @@ class SessionManager:
             from kyle_agent.core.compact.compactor import Compactor
             messages = self._store.read_messages(sid)
             session_dir = self._store.session_dir(sid)
+# 手动 /compact 保持全量替换;增量保留轮数仅自动压缩按配置启用
             compactor = Compactor(self._bus, session_dir, sid, router=self._router)
             result = await compactor.compact_messages(messages, self._provider, focus=focus)
             if result is None:

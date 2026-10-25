@@ -61,6 +61,16 @@ class CompactionConfig:
     auto_threshold: float = 0.0
     tool_result_limit: int = 8_000  # tool_result 截断触发字符数
     tool_result_keep: int = 4_000   # 截断后保留的前缀字符数
+    # 增量压缩:压缩时原样保留最近 N 轮对话(0 = 全量替换旧行为)
+    keep_recent_turns: int = 0
+
+
+@dataclass
+class MemoryConfig:
+    # 跨会话记忆检索(FTS5);禁用后回退纯 session/notes 三层记忆
+    enabled: bool = True
+    db: str = "~/.kyle/memory.db"
+    top_k: int = 3  # 每次注入的最大记忆条数
 
 
 @dataclass
@@ -89,6 +99,7 @@ class KyleConfig:
     trace: TraceConfig = field(default_factory=TraceConfig)
     permission: PermissionConfig = field(default_factory=PermissionConfig)
     compaction: CompactionConfig = field(default_factory=CompactionConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
 
 
@@ -124,7 +135,10 @@ def get_config() -> KyleConfig:
 
 # 将已解析的 TOML 根表写入 config；未知小节或类型错误时退出进程
 def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
-    known = {"core", "logging", "agent", "llm", "trace", "permission", "compaction", "mcp"}
+    known = {
+        "core", "logging", "agent", "llm", "trace", "permission", "compaction",
+        "memory", "mcp",
+    }
     unknown = set(data.keys()) - known
     if unknown:
         raise SystemExit(f"Unknown top-level config keys: {', '.join(sorted(unknown))}")
@@ -257,6 +271,7 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
             raise SystemExit("Config error: [compaction] must be a table")
         unknown_comp: set[str] = set(comp.keys()) - {
             "auto_threshold", "tool_result_limit", "tool_result_keep",
+            "keep_recent_turns",
         }
         if unknown_comp:
             raise SystemExit(f"Unknown [compaction] keys: {', '.join(sorted(unknown_comp))}")
@@ -279,6 +294,37 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                     "Config error: compaction.tool_result_keep must be a positive integer"
                 )
             config.compaction.tool_result_keep = val
+        if "keep_recent_turns" in comp:
+            val = comp["keep_recent_turns"]
+            if not isinstance(val, int) or val < 0:
+                raise SystemExit(
+                    "Config error: compaction.keep_recent_turns must be a "
+                    "non-negative integer"
+                )
+            config.compaction.keep_recent_turns = val
+
+    if "memory" in data:
+        mem = data["memory"]
+        if not isinstance(mem, dict):
+            raise SystemExit("Config error: [memory] must be a table")
+        unknown_mem: set[str] = set(mem.keys()) - {"enabled", "db", "top_k"}
+        if unknown_mem:
+            raise SystemExit(f"Unknown [memory] keys: {', '.join(sorted(unknown_mem))}")
+        if "enabled" in mem:
+            val = mem["enabled"]
+            if not isinstance(val, bool):
+                raise SystemExit("Config error: memory.enabled must be a boolean")
+            config.memory.enabled = val
+        if "db" in mem:
+            val = mem["db"]
+            if not isinstance(val, str):
+                raise SystemExit("Config error: memory.db must be a string")
+            config.memory.db = val
+        if "top_k" in mem:
+            val = mem["top_k"]
+            if not isinstance(val, int) or val <= 0:
+                raise SystemExit("Config error: memory.top_k must be a positive integer")
+            config.memory.top_k = val
 
     if "mcp" in data:
         mcp = data["mcp"]

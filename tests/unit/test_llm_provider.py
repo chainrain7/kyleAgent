@@ -231,3 +231,32 @@ async def test_model_override_applies_to_request_and_event() -> None:
     sel = next(e for e in events if e.type == "llm.model_selected")  # type: ignore[attr-defined]
     assert sel.model == "other-model"  # type: ignore[attr-defined]
     assert sel.strategy == "rule_based"  # type: ignore[attr-defined]
+
+
+# 功能：消息级缓存断点注解到倒数第二条消息,且不修改调用方消息对象
+# 设计：两条消息入参,断言请求 messages[-2] 尾块带 cache_control、原入参保持纯净
+#       (原对象被改会泄漏进 session 存储与后续请求)
+async def test_message_cache_breakpoint_annotates_request_only() -> None:
+    provider, client = _make_provider()
+    msgs: list[dict[str, object]] = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": [{"type": "text", "text": "hello"}]},
+        {"role": "user", "content": "again"},
+    ]
+    snapshot = [dict(m) if isinstance(m.get("content"), str) else m for m in msgs]
+    await _chat(provider, messages=msgs)
+    sent = client.messages.stream.call_args.kwargs["messages"]
+    anchor = sent[-2]
+    assert anchor["content"][-1]["cache_control"] == {"type": "ephemeral"}  # type: ignore[index]
+    # 入参未被污染
+    assert msgs == snapshot
+    assert "cache_control" not in msgs[1]["content"][-1]  # type: ignore[index]
+
+
+# 功能：cache_hit_rate 事件字段按 (read)/(input+read+creation) 计算
+# 设计：注入 input=100 + cache_read=300 → 0.75;零分母时为 0
+async def test_cache_hit_rate_metric() -> None:
+    provider, _ = _make_provider(input_tokens=100, output_tokens=5, cache_read=300)
+    _, events = await _chat(provider)
+    ue = next(e for e in events if e.type == "llm.usage")  # type: ignore[attr-defined]
+    assert ue.cache_hit_rate == pytest.approx(0.75)  # type: ignore[attr-defined]

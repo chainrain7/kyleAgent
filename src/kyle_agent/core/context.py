@@ -13,6 +13,8 @@ class ExecutionContext:
     session_notes: str = ""
     global_context: str = ""
     project_context: str = ""
+    # 跨会话记忆检索结果(分层记忆第四层),随 system prompt 注入
+    recalled_memories: str = ""
     messages: list[dict[str, Any]] = field(default_factory=list)
     step: int = 0
     status: str = "running"  # "running" | "success" | "failed"
@@ -37,6 +39,8 @@ class ExecutionContext:
             parts.append("\n\n## Global Context\n" + self.global_context.strip())
         if self.project_context.strip():
             parts.append("\n\n## Project Context\n" + self.project_context.strip())
+        if self.recalled_memories.strip():
+            parts.append("\n\n## Recalled Memories\n" + self.recalled_memories.strip())
         if self.session_notes.strip():
             parts.append(
                 "\n\n## Session Notes\n"

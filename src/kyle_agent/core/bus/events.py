@@ -88,6 +88,8 @@ class LlmUsageEvent(BaseModel):
     cache_read_input_tokens: int
     cache_creation_input_tokens: int
     context_pct: float = 0.0
+    # 缓存命中率 = cache_read / (input + cache_read + cache_creation),水位治理核心指标
+    cache_hit_rate: float = 0.0
     ts: str
 
 

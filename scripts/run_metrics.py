@@ -74,6 +74,7 @@ def compute_metrics(events: list[dict[str, Any]], skipped_lines: int = 0) -> dic
         "cache_creation_input_tokens": 0,
         "total_tokens": 0,
         "context_pct_max": 0.0,
+        "cache_hit_rate_last": 0.0,
     }
     by_tool: dict[str, dict[str, Any]] = {}
     all_elapsed: list[int] = []
@@ -111,6 +112,7 @@ def compute_metrics(events: list[dict[str, Any]], skipped_lines: int = 0) -> dic
             llm["cache_read_input_tokens"] += int(event.get("cache_read_input_tokens") or 0)
             llm["cache_creation_input_tokens"] += int(event.get("cache_creation_input_tokens") or 0)
             llm["context_pct_max"] = max(llm["context_pct_max"], float(event.get("context_pct") or 0.0))
+            llm["cache_hit_rate_last"] = float(event.get("cache_hit_rate") or 0.0)
         elif etype == "llm.model_selected":
             entry = llm["models"].setdefault(
                 str(event.get("model") or "?"), {"calls": 0, "strategies": {}}

@@ -58,6 +58,26 @@ class AnthropicProvider:
             self._client = client
         self._model = model
 
+    # 为倒数第二条消息补 cache_control 断点(增量缓存对话前缀);不改调用方消息对象
+    @staticmethod
+    def _with_message_cache_breakpoint(
+        messages: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        if len(messages) < 2:
+            return messages
+        anchor = messages[-2]
+        content = anchor.get("content")
+        if not isinstance(content, list) or not content:
+            return messages
+        last_block = content[-1]
+        if not isinstance(last_block, dict) or "cache_control" in last_block:
+            return messages
+        annotated = dict(anchor)
+        new_blocks = list(content)
+        new_blocks[-1] = {**last_block, "cache_control": {"type": "ephemeral"}}
+        annotated["content"] = new_blocks
+        return messages[:-2] + [annotated, messages[-1]]
+
     # 流式调用 Anthropic API，逐 token 发布事件并返回 LlmResponse；网络中断时自动重试
     async def chat(
         self,
@@ -97,7 +117,7 @@ class AnthropicProvider:
             "model": effective_model,
             "max_tokens": 8192,
             "system": system_blocks,
-            "messages": messages,
+            "messages": self._with_message_cache_breakpoint(messages),
         }
         if tools:
             kwargs["tools"] = tools
@@ -140,6 +160,8 @@ class AnthropicProvider:
             usage.input_tokens + cache_read + cache_create
         ) / _context_window(effective_model)
 
+        total_input = usage.input_tokens + cache_read + cache_create
+        cache_hit_rate = cache_read / total_input if total_input > 0 else 0.0
         await bus.publish(
             LlmUsageEvent(
                 run_id=run_id,
@@ -148,6 +170,7 @@ class AnthropicProvider:
                 cache_read_input_tokens=cache_read,
                 cache_creation_input_tokens=cache_create,
                 context_pct=context_pct,
+                cache_hit_rate=cache_hit_rate,
                 ts=_now(),
             )
         )

@@ -1251,6 +1251,7 @@ Events written to `runs/<run_id>/events.jsonl` and forwarded over IPC to subscri
 | `cache_read_input_tokens` | `integer` | yes |
 | `cache_creation_input_tokens` | `integer` | yes |
 | `context_pct` | `number` | no |
+| `cache_hit_rate` | `number` | no |
 | `ts` | `string` | yes |
 
 ```json
@@ -1285,6 +1286,11 @@ Events written to `runs/<run_id>/events.jsonl` and forwarded over IPC to subscri
     "context_pct": {
       "default": 0.0,
       "title": "Context Pct",
+      "type": "number"
+    },
+    "cache_hit_rate": {
+      "default": 0.0,
+      "title": "Cache Hit Rate",
       "type": "number"
     },
     "ts": {
