@@ -25,6 +25,7 @@ kyleAgent 是一个用 Python 3.12 实现的本地 AI Agent 运行时：采用 d
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
 - **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
 - **durable run**：每步快照 run_state.json，daemon 崩溃重启后自动从断点步续跑（工具 at-least-once，终态快照不重复恢复）
+- **Web Console**：浏览器图形前端（可选依赖），与 TUI/CLI 同一套 JSON-RPC 协议经 WS↔TCP 桥接器接入：流式 Markdown、可折叠工具卡、权限审批卡（键盘 y/a/n/d）、上下文水位与缓存命中率、子代理分组渲染
 - **Textual TUI**：主前端，实时渲染 LLM 流、可折叠工具调用块、内联权限审批卡片、斜杠命令自动补全、上下文水位显示
 
 ## 架构
@@ -211,6 +212,24 @@ TUI 中输入：
 ```
 
 daemon 将当前 `thread.jsonl` 压缩为一份结构化交接摘要（原始目标 / 已完成步骤 / 关键发现 / 文件状态 / 剩余 TODO / 关键数据），覆盖写回 thread（原文件备份为 `thread_<ts>.jsonl.bak`），摘要另存为 `summary_<ts>.md`。
+
+### Web Console（浏览器前端）
+
+除了 CLI 与 TUI,项目提供一个浏览器图形前端,复用同一 daemon 与协议:
+
+```bash
+uv sync --extra webui          # 安装可选依赖(fastapi/uvicorn/websockets)
+uv run kyle-core               # 终端 1:daemon
+uv run kyle-webui              # 终端 2:桥接器,默认 http://127.0.0.1:8080
+```
+
+打开 <http://127.0.0.1:8080> 即可使用。桥接器(`src/kyle_agent/webui/bridge.py`)
+对每条浏览器 WebSocket 建立一条到 daemon 的 TCP 连接并双向中继——不解析、
+不改写协议,协议契约仍由 `core/bus/` 模型单源生成。前端无构建步骤(原生
+HTML/CSS/JS),支持流式 Markdown、工具卡片、审批快捷键、上下文水位与
+断线自动重连。
+
+![kyleAgent Web Console](docs/images/webui.png)
 
 ### 断线重连与会话恢复
 

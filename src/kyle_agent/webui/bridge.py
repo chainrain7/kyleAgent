@@ -45,6 +45,10 @@ async def index() -> FileResponse:
     return FileResponse(_STATIC_DIR / "index.html")
 
 
+# 静态资源(style.css / app.js)
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
 # WebSocket ↔ daemon TCP 双向中继;任一侧断开即收尾另一侧
 @app.websocket("/ws")
 async def ws_relay(ws: WebSocket) -> None:
@@ -79,7 +83,8 @@ async def ws_relay(ws: WebSocket) -> None:
         task.cancel()
     for task in done:
         exc = task.exception()
-        if exc is not None and not isinstance(exc, (WebSocketDisconnect, ConnectionResetError, OSError)):
+        transient = (WebSocketDisconnect, ConnectionResetError, OSError)
+        if exc is not None and not isinstance(exc, transient):
             logger.warning("ws relay ended with error: %r", exc)
     for task in pending:
         try:

@@ -36,10 +36,13 @@ function el(tag, cls, text) {
   return n;
 }
 
-// 追加到会话流;hero 空状态出现后即移除
-function append(node) {
-  const hero = $("#hero");
-  if (hero && hero.parentNode) hero.remove();
+// 追加到会话流;真实内容(user/assistant/工具/审批)出现后移除 hero 空状态,
+// 系统提示行(sysline/divider)不清场
+function append(node, keepHero) {
+  if (!keepHero) {
+    const hero = $("#hero");
+    if (hero && hero.parentNode) hero.remove();
+  }
   $("#transcript").appendChild(node);
   scrollBottom(true);
 }
@@ -296,7 +299,7 @@ function handleEvent(e) {
       state.lastRunId = e.run_id;
       setConn("busy", "running");
       setSessionUI();
-      append(el("div", "divider", `run ${e.run_id}`));
+      append(el("div", "divider", `run ${e.run_id}`), true);
       break;
     }
     case "run.finished": {
@@ -367,7 +370,7 @@ function handleEvent(e) {
       break;
     }
     case "skill.invoked":
-      append(el("div", "sysline", `⚡ skill ${e.skill_name}(${e.arguments || ""})`));
+      append(el("div", "sysline", `⚡ skill ${e.skill_name}(${e.arguments || ""})`), true);
       break;
     case "session.waiting_for_input":
       state.running = false;
@@ -375,7 +378,7 @@ function handleEvent(e) {
       setSessionUI();
       break;
     case "session.resumed":
-      append(el("div", "sysline ok", `↩ 已接回会话 ${e.session_id}`));
+      // onOpen 已渲染恢复提示,此处静默避免重复
       break;
     case "session.closed":
       state.sessionId = null;
@@ -437,7 +440,7 @@ async function onOpen() {
       topics: ["*"], scope: "global",
     });
     if (sub.replayed_count > 0) {
-      append(el("div", "sysline", `↺ 回放了 ${sub.replayed_count} 条历史事件`));
+      append(el("div", "sysline", `↺ 回放了 ${sub.replayed_count} 条历史事件`), true);
     }
     // 首次进入且无会话:resume 最近活跃会话(空 transcript 时回放其最近 run);
     // 否则新建
@@ -446,7 +449,7 @@ async function onOpen() {
         const r = await send("session.resume", {});
         state.sessionId = r.session_id;
         state.lastRunId = r.last_run_id || null;
-        append(el("div", "sysline ok", `↩ 恢复会话 ${r.session_id}`));
+        append(el("div", "sysline ok", `↩ 恢复会话 ${r.session_id}`), true);
         if (state.everConnected === false && r.last_run_id) {
           // 通过再次订阅携带 replay_from_run?桥接层允许重复订阅:
           // 直接发一次带 replay 的订阅把最近 run 的历史补齐
@@ -457,10 +460,10 @@ async function onOpen() {
       } catch {
         const c = await send("session.create", { mode: "chat" });
         state.sessionId = c.session_id;
-        append(el("div", "sysline ok", `✦ 新会话 ${c.session_id}`));
+        append(el("div", "sysline ok", `✦ 新会话 ${c.session_id}`), true);
       }
     } else {
-      append(el("div", "sysline ok", "✓ 已重新连接,会话保持"));
+      append(el("div", "sysline ok", "✓ 已重新连接,会话保持"), true);
     }
     state.everConnected = true;
     setConn(state.running ? "busy" : "ready", state.running ? "running" : "ready");
@@ -511,12 +514,13 @@ async function sendMessage() {
   const msg = el("div", "msg msg-user");
   msg.appendChild(el("div", "bubble", content));
   append(msg);
-  try {
-    await send("session.send_message", { session_id: state.sessionId, content });
-  } catch (err) {
-    toast(err.message || String(err));
-    if (err.code === -32010) { state.sessionId = null; setSessionUI(); }
-  }
+  // 不 await:daemon 的 send_message 要等整个 run 结束才返回,
+  // 过程已由事件实时渲染;这里只关心发送层错误
+  send("session.send_message", { session_id: state.sessionId, content })
+    .catch((err) => {
+      toast(err.message || String(err));
+      if (err.code === -32010) { state.sessionId = null; setSessionUI(); }
+    });
 }
 
 function autoResize() {

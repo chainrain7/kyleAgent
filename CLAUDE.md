@@ -66,6 +66,10 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **Web Console** (`src/kyle_agent/webui/`): FastAPI WS↔TCP relay + static
+  single-page frontend (optional deps `[webui]`, entry `kyle-webui`). The bridge
+  never parses or rewrites protocol messages; frontend has no build step.
+  CI installs `--extra webui`; E2E coverage in `tests/integration/test_webui_bridge.py`.
 
 Docs rule: every functional change updates this file and README together.
 
