@@ -21,6 +21,10 @@ kyleAgent 是一个用 Python 3.12 实现的本地 AI Agent 运行时：采用 d
 - **多后端接入**：`llm.provider = "anthropic" | "openai"`；OpenAI 兼容端点（DeepSeek `/v1`、vLLM、Ollama 等）的消息格式翻译在 provider 边界完成，核心循环零感知
 - **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
 - **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
+- **评测体系**：10 个确定性任务集（终态断言、不依赖 LLM 打分）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
+- **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
+- **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
+- **durable run**：每步快照 run_state.json，daemon 崩溃重启后自动从断点步续跑（工具 at-least-once，终态快照不重复恢复）
 - **Textual TUI**：主前端，实时渲染 LLM 流、可折叠工具调用块、内联权限审批卡片、斜杠命令自动补全、上下文水位显示
 
 ## 架构
@@ -138,6 +142,8 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `logging.file` | str | `~/.kyle/logs/core.log` | `KYLE_LOG_FILE` |
 | `logging.format` | str | `text` | `KYLE_LOG_FORMAT` |
 | `agent.max_steps` | int | `20` | `KYLE_MAX_STEPS` |
+| `agent.max_parallel_tools` | int | `4` | — |
+| `agent.durable_runs` | bool | `true` | — |
 | `llm.provider` | str | `anthropic` | `KYLE_LLM_PROVIDER` |
 | `llm.default_model` | str | `claude-sonnet-4-6` | `KYLE_LLM_DEFAULT_MODEL` |
 | `llm.router` | str | `static` | — |
@@ -150,6 +156,10 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `compaction.auto_threshold` | float | `0.0` | `KYLE_COMPACT_THRESHOLD` |
 | `compaction.tool_result_limit` | int | `8000` | `KYLE_COMPACT_TOOL_LIMIT` |
 | `compaction.tool_result_keep` | int | `4000` | `KYLE_COMPACT_TOOL_KEEP` |
+| `compaction.keep_recent_turns` | int | `0` | — |
+| `memory.enabled` | bool | `true` | — |
+| `memory.db` | str | `~/.kyle/memory.db` | — |
+| `memory.top_k` | int | `3` | — |
 
 另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 Anthropic 后端的必要凭据；`llm.provider = "openai"` 时改用 `OPENAI_API_KEY`（可选 `OPENAI_BASE_URL`，如 `https://api.deepseek.com/v1`）。`web_search` 的 JSON 后端用 `KYLE_SEARCH_API_KEY` + `KYLE_SEARCH_ENDPOINT` 配置，不配置则使用免 key 的 DuckDuckGo 后端。
 
@@ -320,6 +330,9 @@ uv run kyle trace -f                    # 持续跟踪新记录
 **LLM 连接失败(Connection error),但浏览器/curl 能访问 API?**
 Python 的 HTTP 客户端会自动读取系统代理(Windows 注册表代理或 `HTTP_PROXY` 环境变量),Clash 等本地代理可能拦截 API 请求或无法回环 localhost。设置 `NO_PROXY=*`(或把 API 域名加入代理直连规则)后重启 `kyle-core`。
 
+**daemon 崩溃后正在跑的任务怎么办?**
+durable run 默认开启:每步落 `run_state.json` 快照,daemon 重启后自动从断点步续跑。工具执行是 at-least-once——崩溃点若在工具执行中途,该工具恢复后会重放(幂等工具安全,非幂等 bash 命令可能重复执行);设 `agent.durable_runs = false` 关闭。
+
 **`kyle run` / `kyle chat` 里工具迟迟不执行?**
 `bash`、`write_file` 与未登记工具默认需要审批:交互终端按 `y`/`a`/`n`/`d`;管道或 EOF 场景会自动拒绝该次调用,超时上限由 `KYLE_PERMISSION_TIMEOUT_S` 控制。
 
@@ -337,6 +350,10 @@ uv run python scripts/gen_protocol_doc.py --check
 
 # 单次 run 的指标统计（LLM 调用/ token/工具分布），支持前后对比
 uv run python scripts/run_metrics.py <events.jsonl> --compare <other.jsonl>
+
+# 评测流水线:--record 真实录制 / --replay 离线回归(CI) / --compare 对比基线
+uv run python scripts/run_evals.py --replay
+uv run python scripts/run_evals.py --compare evals/results/baseline.json
 ```
 
 GitHub Actions（`.github/workflows/ci.yml`）在 ubuntu / macos / windows 三平台矩阵上执行全部质量门禁，push 到 main 或提 PR 自动触发。

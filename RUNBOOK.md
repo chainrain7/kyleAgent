@@ -111,3 +111,19 @@ uv run python scripts/run_metrics.py <events.jsonl 路径或 run 目录> [--comp
 
 输出 Markdown 报告：run 状态、LLM 调用与按模型分组的 token 用量、工具成败与耗时分布、
 compact 次数；`--compare` 生成前后对比表（模型路由/压缩策略改动的量化依据）。
+
+---
+
+## durable run(断点续跑)
+
+- 默认开启(`agent.durable_runs = true`):每步把上下文快照写入
+  `<run 目录>/run_state.json`(原子写),run 结束写终态
+- daemon 重启时自动扫描 sessions 树中 status=running 的快照并后台续跑;
+  日志出现 `durable: recovered N pending run(s)`
+- 语义:工具 at-least-once;崩溃在工具执行中途时该工具重放一次
+
+## 跨会话记忆([memory])
+
+- `~/.kyle/memory.db`(SQLite FTS5):note_save 笔记与成功 run 结论自动入库
+- 每次 run 启动按目标检索 top-k 注入 system prompt(Recalled Memories 段)
+- `memory.enabled = false` 关闭;`memory.top_k` 控制注入条数
