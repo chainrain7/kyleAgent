@@ -6,11 +6,9 @@ CI 端:任何影响 agent 行为的改动若破坏任务通过率,这里直接�
 """
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 import pytest
-
 from evals.cassette import CassetteProvider, load_cassette
 from evals.harness import run_task
 from evals.tasks import TASKS
