@@ -255,6 +255,7 @@ class AgentRunner:
                     compact_threshold=self._config.compaction.auto_threshold,
                     session_id=session_id_str,
                     router=router,
+                    max_parallel_tools=self._config.agent.max_parallel_tools,
                 )
                 await loop.run(context)
             except asyncio.CancelledError:

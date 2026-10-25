@@ -10,6 +10,8 @@ from kyle_agent.core.bus.events import StepFinishedEvent, StepStartedEvent
 from kyle_agent.core.context import ExecutionContext
 from kyle_agent.core.events.bus import EventBus
 from kyle_agent.core.llm.base import LLMProvider
+from kyle_agent.core.llm.types import ToolCallBlock
+from kyle_agent.core.tools.base import ToolResult
 from kyle_agent.core.tools.invocation import invoke_tool
 from kyle_agent.core.tools.registry import ToolRegistry
 
@@ -20,6 +22,12 @@ if TYPE_CHECKING:
 
 
 log = logging.getLogger(__name__)
+
+# 可安全并行的只读工具集合:无本地状态变更,乱序执行不影响结果
+_READ_ONLY_TOOLS: frozenset[str] = frozenset({
+    "read_file", "list_dir", "note_save",
+    "task_get", "task_list", "agent_result", "web_search",
+})
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
@@ -54,6 +62,7 @@ class AgentLoop:
         compact_threshold: float = 0.80,
         session_id: str = "",
         router: ModelRouter | None = None,
+        max_parallel_tools: int = 4,
     ) -> None:
         self._provider = provider
         self._registry = registry
@@ -63,6 +72,8 @@ class AgentLoop:
         self._compact_threshold = compact_threshold
         self._session_id = session_id
         self._router = router
+        # 只读工具批次的并发上限;1 等效关闭并行
+        self._max_parallel_tools = max(1, max_parallel_tools)
 
     # 驱动 plan→act→observe 循环直到上下文终止；CancelledError 向上传播
     async def run(self, context: ExecutionContext) -> None:
@@ -121,14 +132,10 @@ class AgentLoop:
                 )
             context.add_assistant_message(blocks)
 
-            # [act] execute each requested tool; errors become tool results so loop continues
+            # [act] execute requested tools; errors become tool results so loop continues
             if response.stop_reason == "tool_use":
-                for tc in response.tool_calls:
-                    result = await invoke_tool(
-                        self._registry, tc, self._bus, context.run_id,
-                        permission_manager=self._permission_manager,
-                        session_id=self._session_id,
-                    )
+                results = await self._execute_tool_calls(response.tool_calls, context)
+                for tc, result in zip(response.tool_calls, results, strict=True):
                     context.add_tool_result(tc.id, result.content, is_error=result.is_error)
             elif response.stop_reason == "max_tokens" and response.tool_calls:
                 # Output token limit hit mid-tool-call; input is incomplete.
@@ -163,3 +170,32 @@ class AgentLoop:
             await self._bus.publish(
                 StepFinishedEvent(run_id=context.run_id, step=context.step, ts=_now())
             )
+
+    # 执行一批工具调用:纯只读批次并发(信号量限流),含变更工具时整批串行;
+    # 无论执行顺序如何,返回结果与 tool_calls 顺序一一对应
+    async def _execute_tool_calls(
+        self, tool_calls: list[ToolCallBlock], context: ExecutionContext
+    ) -> list[ToolResult]:
+        async def _one(tc: ToolCallBlock) -> ToolResult:
+            return await invoke_tool(
+                self._registry, tc, self._bus, context.run_id,
+                permission_manager=self._permission_manager,
+                session_id=self._session_id,
+            )
+
+        can_parallel = (
+            len(tool_calls) > 1
+            and self._max_parallel_tools > 1
+            and all(tc.name in _READ_ONLY_TOOLS for tc in tool_calls)
+        )
+        if not can_parallel:
+            return [await _one(tc) for tc in tool_calls]
+
+        # 并发上限:同一批次内的只读工具同时执行(如一轮读 5 个文件)
+        sem = asyncio.Semaphore(self._max_parallel_tools)
+
+        async def _limited(tc: ToolCallBlock) -> ToolResult:
+            async with sem:
+                return await _one(tc)
+
+        return list(await asyncio.gather(*(_limited(tc) for tc in tool_calls)))

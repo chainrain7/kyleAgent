@@ -257,3 +257,108 @@ async def test_assistant_message_blocks_added_to_context() -> None:
     blocks = assistant_msg["content"]
     assert blocks[0]["type"] == "text"  # type: ignore[index]
     assert blocks[0]["text"] == "answer"  # type: ignore[index]
+
+
+# 并行执行测试专用:延迟后按入参回显的只读工具(registry 按名注册,单实例多用)
+class _SlowEchoTool(BaseTool):
+    name = "read_file"
+    description = "slow read"
+    input_schema: dict[str, object] = {
+        "type": "object",
+        "properties": {"msg": {"type": "string"}}, "required": [],
+    }
+
+    # delay 秒后返回 done-<msg>
+    def __init__(self, delay: float) -> None:
+        self._delay = delay
+
+    async def invoke(self, params: dict[str, object]) -> ToolResult:
+        await asyncio.sleep(self._delay)
+        return ToolResult(content=f"done-{params.get('msg', '')}")
+
+
+# 功能:同一批只读工具并发执行,端到端耗时显著低于串行总和
+# 设计:3 个各 sleep 0.25s 的 read_file 一轮发出;串行 ≥0.75s,并发应 <0.55s,
+#       留出调度余量;同时断言结果按 tool_calls 原顺序回填
+async def test_parallel_readonly_batch_is_faster() -> None:
+    provider = _MockProvider([
+        LlmResponse(stop_reason="tool_use", tool_calls=[
+            ToolCallBlock(id="t1", name="read_file", input={"msg": "a"}),
+            ToolCallBlock(id="t2", name="read_file", input={"msg": "b"}),
+            ToolCallBlock(id="t3", name="read_file", input={"msg": "c"}),
+        ]),
+        LlmResponse(stop_reason="end_turn"),
+    ])
+    registry = ToolRegistry()
+    registry.register(_SlowEchoTool(0.25))
+    loop, _ = _make_loop(provider, registry)
+    ctx = _ctx(max_steps=3)
+
+    import time
+    t0 = time.monotonic()
+    await loop.run(ctx)
+    elapsed = time.monotonic() - t0
+
+    assert ctx.status == "success"
+    assert elapsed < 0.55, f"并发批次耗时 {elapsed:.2f}s,未体现并行"
+    # 结果与 tool_calls 顺序一一对应
+    tool_msg = ctx.messages[2]
+    contents = [b["content"] for b in tool_msg["content"]]  # type: ignore[index]
+    assert contents == ["done-a", "done-b", "done-c"]
+
+
+# 功能:批次含变更工具(bash/write_file)时整批退回串行
+# 设计:read_file(快) + write_file(慢) 一轮发出,串行下 read 先执行完;
+#       断言 tool_result 顺序仍与 tool_calls 对齐且全部执行
+async def test_mixed_batch_falls_back_to_sequential() -> None:
+    class _WriteTool(BaseTool):
+        name = "write_file"
+        description = "write"
+        input_schema: dict[str, object] = {
+            "type": "object", "properties": {}, "required": [],
+        }
+
+        async def invoke(self, params: dict[str, object]) -> ToolResult:
+            await asyncio.sleep(0.05)
+            return ToolResult(content="wrote")
+
+    provider = _MockProvider([
+        LlmResponse(stop_reason="tool_use", tool_calls=[
+            ToolCallBlock(id="t1", name="read_file", input={}),
+            ToolCallBlock(id="t2", name="write_file", input={}),
+        ]),
+        LlmResponse(stop_reason="end_turn"),
+    ])
+    registry = ToolRegistry()
+    registry.register(_SlowEchoTool(0.01))
+    registry.register(_WriteTool())
+    loop, _ = _make_loop(provider, registry)
+    ctx = _ctx(max_steps=3)
+
+    await loop.run(ctx)
+    assert ctx.status == "success"
+    tool_msg = ctx.messages[2]
+    contents = [b["content"] for b in tool_msg["content"]]  # type: ignore[index]
+    assert contents == ["done-", "wrote"]
+
+
+# 功能:max_parallel_tools=1 时只读批次也保持串行(配置开关)
+# 设计:两个 0.2s 工具,关闭并行后耗时 ≥0.4s
+async def test_parallel_disabled_by_config() -> None:
+    provider = _MockProvider([
+        LlmResponse(stop_reason="tool_use", tool_calls=[
+            ToolCallBlock(id="t1", name="read_file", input={}),
+            ToolCallBlock(id="t2", name="read_file", input={}),
+        ]),
+        LlmResponse(stop_reason="end_turn"),
+    ])
+    registry = ToolRegistry()
+    registry.register(_SlowEchoTool(0.2))
+    b = EventBus()
+    loop = AgentLoop(provider, registry, b, max_parallel_tools=1)  # type: ignore[arg-type]
+    ctx = _ctx(max_steps=3)
+
+    import time
+    t0 = time.monotonic()
+    await loop.run(ctx)
+    assert time.monotonic() - t0 >= 0.4

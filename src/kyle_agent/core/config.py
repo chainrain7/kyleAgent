@@ -29,6 +29,8 @@ class LoggingConfig:
 @dataclass
 class AgentConfig:
     max_steps: int = _DEFAULT_MAX_STEPS
+    # 同一批只读工具调用的并发上限(1 = 关闭并行)
+    max_parallel_tools: int = 4
 
 
 @dataclass
@@ -179,7 +181,7 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
         agent = data["agent"]
         if not isinstance(agent, dict):
             raise SystemExit("Config error: [agent] must be a table")
-        unknown_agent: set[str] = set(agent.keys()) - {"max_steps"}
+        unknown_agent: set[str] = set(agent.keys()) - {"max_steps", "max_parallel_tools"}
         if unknown_agent:
             raise SystemExit(f"Unknown [agent] keys: {', '.join(sorted(unknown_agent))}")
         if "max_steps" in agent:
@@ -187,6 +189,13 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
             if not isinstance(val, int) or val <= 0:
                 raise SystemExit("Config error: agent.max_steps must be a positive integer")
             config.agent.max_steps = val
+        if "max_parallel_tools" in agent:
+            val = agent["max_parallel_tools"]
+            if not isinstance(val, int) or val < 1:
+                raise SystemExit(
+                    "Config error: agent.max_parallel_tools must be a positive integer"
+                )
+            config.agent.max_parallel_tools = val
 
     if "llm" in data:
         llm = data["llm"]
