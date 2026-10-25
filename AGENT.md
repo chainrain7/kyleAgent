@@ -48,6 +48,27 @@ kyle (CLI)   kyle-tui (TUI, S2+)
 
 **`kyle-tui` is the primary frontend.** All user-facing work on task management, observability, and interaction should be designed for and validated in the TUI first. The `kyle` CLI exists only for quick scripted testing and debugging — it is not a product surface. When implementing features that touch the user interface, invest in the TUI layout, event rendering, and keyboard interactions. Do not shortcut TUI work by pointing to the CLI as an alternative.
 
+### Current capability snapshot (2026-10-25, keep in sync with README)
+
+Beyond the staged S0–S7 base, the runtime now ships:
+
+- **Evals** (`evals/` + `scripts/run_evals.py`): 10 deterministic tasks judged by
+  workspace end-state assertions; cassette record/replay gives offline, zero-key
+  deterministic regression (CI gate: `tests/integration/test_eval_replay.py`).
+  Changing tool *semantics* requires re-recording cassettes; new tasks require a
+  cassette or the coverage test fails.
+- **Context engine**: cl100k_base token accounting (`core/compact/tokens.py`),
+  message-level cache breakpoints + `cache_hit_rate` metric, cross-session FTS5
+  memory (`core/memory/index.py`, injected as Recalled Memories), structured
+  JSON compaction + incremental keep-recent-turns.
+- **Execution engine**: parallel read-only tool batches (`agent.max_parallel_tools`),
+  durable runs (`core/durable.py` — per-step `run_state.json` snapshots, resume on
+  daemon restart, at-least-once tool semantics).
+- **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
+  (`core/llm/openai_provider.py` + `factory.py`).
+
+Docs rule: every functional change updates this file and README together.
+
 ### Protocol layer (`src/kyle_agent/core/bus/`)
 
 All IPC messages are typed pydantic v2 models with a **discriminated union on the `type` field**. This is the contract boundary — adding a new command or event means adding a new model class to `commands.py` or `events.py` and extending the `Command`/`Event` union.
