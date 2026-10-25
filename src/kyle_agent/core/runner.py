@@ -184,6 +184,7 @@ class AgentRunner:
         recalled = ""
         if memory_index is None and self._config.memory.enabled:
             memory_index = MemoryIndex(Path(self._config.memory.db).expanduser())
+        if memory_index is not None:
             hits = memory_index.recall(goal, k=self._config.memory.top_k)
             if hits:
                 recalled = "\n".join(
