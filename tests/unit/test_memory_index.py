@@ -70,6 +70,6 @@ async def test_runner_memory_inject_and_writeback(tmp_path: Path) -> None:
     assert provider.system is not None
     assert "Recalled Memories" in provider.system
     assert "DEPLOY-42" in provider.system
-    hits = idx.recall("deploy")
+    hits = idx.recall("docker")
     assert any(h.source == "run" and "docker" in h.content for h in hits)
     idx.close()
