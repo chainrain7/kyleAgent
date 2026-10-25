@@ -20,8 +20,8 @@ from typing import Any
 
 from kyle_agent.core.bus.events import LlmModelSelectedEvent, LlmUsageEvent
 from kyle_agent.core.events.bus import EventBus
-from kyle_agent.core.llm.types import LlmResponse, ToolCallBlock, UsageStats
 from kyle_agent.core.llm.provider import _context_window
+from kyle_agent.core.llm.types import LlmResponse, ToolCallBlock, UsageStats
 
 logger = logging.getLogger(__name__)
 

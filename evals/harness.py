@@ -89,6 +89,7 @@ async def run_task(
     config = KyleConfig()
     config.agent.max_steps = task.max_steps
     config.compaction.auto_threshold = 0.0
+    config.memory.enabled = False  # 评测确定性:不注入跨会话记忆
 
     collected: list[BaseModel] = []
 

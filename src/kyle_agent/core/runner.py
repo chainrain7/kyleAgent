@@ -17,6 +17,7 @@ from kyle_agent.core.llm.factory import build_provider
 from kyle_agent.core.llm.router import build_router
 from kyle_agent.core.loop import AgentLoop
 from kyle_agent.core.mcp.server import McpServerManager
+from kyle_agent.core.memory.index import MemoryIndex
 from kyle_agent.core.memory.loader import load_context_file
 from kyle_agent.core.permissions.manager import PermissionManager
 from kyle_agent.core.runs import RUNS_DIR, new_run_id
@@ -66,6 +67,7 @@ class AgentRunner:
         trace: TraceWriter | None = None,
         permission_manager: PermissionManager | None = None,
         mcp_manager: McpServerManager | None = None,
+        memory_index: MemoryIndex | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -75,6 +77,8 @@ class AgentRunner:
         self._trace = trace
         self._permission_manager = permission_manager
         self._mcp_manager = mcp_manager
+        # 跨会话记忆库;不注入时按 config.memory 决定是否自建(生产默认开)
+        self._memory_index = memory_index
         # 跨 run 共享的后台 subagent 任务注册表
         self._task_registry = BackgroundTaskRegistry()
 
@@ -91,6 +95,7 @@ class AgentRunner:
         child_runs_dir: Path | None = None,
         session_id: str = "",
         tool_whitelist: list[str] | None = None,
+        memory_index: MemoryIndex | None = None,
     ) -> ToolRegistry:
         # 空列表表示"不允许任何工具"，None 表示不限制；必须用 is not None 区分
         allowed: set[str] | None = set(tool_whitelist) if tool_whitelist is not None else None
@@ -111,7 +116,7 @@ class AgentRunner:
             if _ok(t.name):
                 registry.register(t)
         if session is not None and store is not None and run_id is not None:
-            note_tool = NoteSaveTool(store, session.id, run_id)
+            note_tool = NoteSaveTool(store, session.id, run_id, memory_index=memory_index)
             if _ok(note_tool.name):
                 registry.register(note_tool)
         if provider is not None and bus is not None and run_id is not None:
@@ -173,6 +178,18 @@ class AgentRunner:
         for h in self._extra_handlers:
             bus.subscribe(h)
 
+        # 分层记忆:跨会话检索与目标相关的持久记忆注入 system prompt
+        # 注入的实例优先(测试/定制用);否则按 config.memory 自建
+        memory_index: MemoryIndex | None = self._memory_index
+        recalled = ""
+        if memory_index is None and self._config.memory.enabled:
+            memory_index = MemoryIndex(Path(self._config.memory.db).expanduser())
+            hits = memory_index.recall(goal, k=self._config.memory.top_k)
+            if hits:
+                recalled = "\n".join(
+                    f"- ({h.ts[:10]} {h.source}) {h.content}" for h in hits
+                )
+
         context = ExecutionContext(
             run_id=run_id,
             goal=goal,
@@ -181,6 +198,7 @@ class AgentRunner:
             session_notes=notes,
             global_context=global_ctx,
             project_context=project_ctx,
+            recalled_memories=recalled,
             system_prompt_override=system_prompt_override,
         )
         prefill_len = len(history)
@@ -216,6 +234,7 @@ class AgentRunner:
                     child_runs_dir=child_runs_dir,
                     session_id=session_id_str,
                     tool_whitelist=tool_whitelist,
+                    memory_index=memory_index,
                 )
                 session_dir = (
                     store.session_dir(session.id)
@@ -253,6 +272,18 @@ class AgentRunner:
                     steps=context.step,
                     ts=_now(),
                 )
+            )
+
+        # 成功 run 的结论摘要回写记忆库(截断 300 字,来源标注 run)
+        if (
+            memory_index is not None
+            and context.status == "success"
+            and context.result.strip()
+        ):
+            memory_index.remember(
+                context.result.strip()[:300],
+                source="run",
+                session_id=session.id if session is not None else "",
             )
 
         if session is not None and store is not None:
