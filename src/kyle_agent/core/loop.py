@@ -17,6 +17,7 @@ from kyle_agent.core.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from kyle_agent.core.compact.compactor import Compactor
+    from kyle_agent.core.durable import RunPersister
     from kyle_agent.core.llm.router import ModelRouter
     from kyle_agent.core.permissions.manager import PermissionManager
 
@@ -63,6 +64,7 @@ class AgentLoop:
         session_id: str = "",
         router: ModelRouter | None = None,
         max_parallel_tools: int = 4,
+        persister: RunPersister | None = None,
     ) -> None:
         self._provider = provider
         self._registry = registry
@@ -74,6 +76,8 @@ class AgentLoop:
         self._router = router
         # 只读工具批次的并发上限;1 等效关闭并行
         self._max_parallel_tools = max(1, max_parallel_tools)
+        # durable run:每步结束持久化快照(daemon 崩溃后可恢复)
+        self._persister = persister
 
     # 驱动 plan→act→observe 循环直到上下文终止；CancelledError 向上传播
     async def run(self, context: ExecutionContext) -> None:
@@ -170,6 +174,13 @@ class AgentLoop:
             await self._bus.publish(
                 StepFinishedEvent(run_id=context.run_id, step=context.step, ts=_now())
             )
+
+            # 每步落盘快照;失败不影响主流程(快照丢失仅意味着该 run 不可恢复)
+            if self._persister is not None:
+                try:
+                    await self._persister.persist(context)
+                except Exception:
+                    log.exception("snapshot persist failed run_id=%s", context.run_id)
 
     # 执行一批工具调用:纯只读批次并发(信号量限流),含变更工具时整批串行;
     # 无论执行顺序如何,返回结果与 tool_calls 顺序一一对应

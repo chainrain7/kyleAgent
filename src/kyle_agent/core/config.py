@@ -31,6 +31,8 @@ class AgentConfig:
     max_steps: int = _DEFAULT_MAX_STEPS
     # 同一批只读工具调用的并发上限(1 = 关闭并行)
     max_parallel_tools: int = 4
+    # durable run:每步落盘快照,daemon 重启后自动恢复运行中的 run
+    durable_runs: bool = True
 
 
 @dataclass
@@ -181,7 +183,9 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
         agent = data["agent"]
         if not isinstance(agent, dict):
             raise SystemExit("Config error: [agent] must be a table")
-        unknown_agent: set[str] = set(agent.keys()) - {"max_steps", "max_parallel_tools"}
+        unknown_agent: set[str] = set(agent.keys()) - {
+            "max_steps", "max_parallel_tools", "durable_runs",
+        }
         if unknown_agent:
             raise SystemExit(f"Unknown [agent] keys: {', '.join(sorted(unknown_agent))}")
         if "max_steps" in agent:
@@ -196,6 +200,11 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                     "Config error: agent.max_parallel_tools must be a positive integer"
                 )
             config.agent.max_parallel_tools = val
+        if "durable_runs" in agent:
+            val2 = agent["durable_runs"]
+            if not isinstance(val2, bool):
+                raise SystemExit("Config error: agent.durable_runs must be a boolean")
+            config.agent.durable_runs = val2
 
     if "llm" in data:
         llm = data["llm"]
