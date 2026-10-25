@@ -61,6 +61,8 @@ class CompactionConfig:
     auto_threshold: float = 0.0
     tool_result_limit: int = 8_000  # tool_result 截断触发字符数
     tool_result_keep: int = 4_000   # 截断后保留的前缀字符数
+    # 增量压缩:压缩时原样保留最近 N 轮对话(0 = 全量替换旧行为)
+    keep_recent_turns: int = 0
 
 
 @dataclass
@@ -269,6 +271,7 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
             raise SystemExit("Config error: [compaction] must be a table")
         unknown_comp: set[str] = set(comp.keys()) - {
             "auto_threshold", "tool_result_limit", "tool_result_keep",
+            "keep_recent_turns",
         }
         if unknown_comp:
             raise SystemExit(f"Unknown [compaction] keys: {', '.join(sorted(unknown_comp))}")
@@ -291,6 +294,14 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                     "Config error: compaction.tool_result_keep must be a positive integer"
                 )
             config.compaction.tool_result_keep = val
+        if "keep_recent_turns" in comp:
+            val = comp["keep_recent_turns"]
+            if not isinstance(val, int) or val < 0:
+                raise SystemExit(
+                    "Config error: compaction.keep_recent_turns must be a "
+                    "non-negative integer"
+                )
+            config.compaction.keep_recent_turns = val
 
     if "memory" in data:
         mem = data["memory"]

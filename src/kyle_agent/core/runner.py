@@ -244,7 +244,10 @@ class AgentRunner:
                 )
                 # 模型路由(static 保持旧行为;rule_based 见 llm/router.py)
                 router = build_router(self._config.llm)
-                compactor = Compactor(bus, session_dir, session_id_str, router=router)
+                compactor = Compactor(
+                    bus, session_dir, session_id_str, router=router,
+                    keep_recent_turns=self._config.compaction.keep_recent_turns,
+                )
                 loop = AgentLoop(
                     provider, registry, bus,
                     permission_manager=self._permission_manager,
