@@ -15,6 +15,7 @@ from kyle_agent.core.bus.events import (
     SessionWaitingForInputEvent,
     SkillInvokedEvent,
 )
+from kyle_agent.core.durable import scan_running
 from kyle_agent.core.events.bus import EventBus
 from kyle_agent.core.runs import new_run_id
 from kyle_agent.core.session.model import Session, SessionMode
@@ -226,6 +227,42 @@ class SessionManager:
             if best is None or candidate.updated_at > best.updated_at:
                 best = candidate
         return best
+
+    # daemon 启动时恢复运行中的 run:扫描快照 → 后台任务从断点续跑
+    # 工具执行为 at-least-once(崩溃点在工具执行中途会重放该工具)
+    async def recover_pending_runs(self) -> int:
+        # 扫描所有 session 的 runs 目录,找 status=="running" 的快照
+        pending = scan_running(self._store.root)
+        count = 0
+        for _path, snap in pending:
+            session = self._sessions.get(snap.session_id)
+            if session is None:
+                try:
+                    session = self._store.read_meta(snap.session_id)
+                except (OSError, ValueError):
+                    continue
+                if session.status == "closed":
+                    continue
+                self._sessions[session.id] = session
+                self._locks.setdefault(session.id, asyncio.Lock())
+            runner = self._runner_factory()
+            asyncio.create_task(
+                runner.run_and_capture(
+                    snap.goal,
+                    run_id=snap.run_id,
+                    session=session,
+                    store=self._store,
+                    resume=snap,
+                )
+            )
+            count += 1
+        if count:
+            import logging
+
+            logging.getLogger(__name__).info(
+                "durable: recovered %d pending run(s)", count
+            )
+        return count
 
     # 读取指定 session 的完整 thread 历史
     async def get_history(self, sid: str) -> list[dict[str, Any]]:

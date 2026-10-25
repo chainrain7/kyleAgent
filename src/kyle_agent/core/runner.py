@@ -10,6 +10,7 @@ from kyle_agent.core.bus.events import RunFinishedEvent, RunStartedEvent
 from kyle_agent.core.compact.compactor import Compactor
 from kyle_agent.core.config import KyleConfig
 from kyle_agent.core.context import ExecutionContext
+from kyle_agent.core.durable import SNAPSHOT_FILENAME, FileRunPersister, RunSnapshot
 from kyle_agent.core.events.bus import EventBus, EventHandler
 from kyle_agent.core.events.writer import EventWriter
 from kyle_agent.core.llm.base import LLMProvider
@@ -157,8 +158,9 @@ class AgentRunner:
         store: SessionStore | None = None,
         system_prompt_override: str | None = None,
         tool_whitelist: list[str] | None = None,
+        resume: RunSnapshot | None = None,
     ) -> RunOutcome:
-        run_id = run_id or new_run_id()
+        run_id = run_id or (resume.run_id if resume is not None else None) or new_run_id()
         if session is not None and store is not None:
             run_path = store.runs_dir(session.id) / run_id
             history = store.read_messages(session.id)
@@ -168,6 +170,13 @@ class AgentRunner:
             history = [{"role": "user", "content": goal}]
             notes = ""
         run_path.mkdir(parents=True, exist_ok=True)
+
+        # durable run 恢复:以快照消息为 prefill、从断点步续跑,
+        # goal/max_steps/override 均以快照为准(调用方无需重复传对)
+        if resume is not None:
+            history = resume.messages
+            goal = resume.goal
+            system_prompt_override = resume.system_prompt_override
 
         global_ctx = load_context_file(Path("~/.kyle/context.md").expanduser())
         project_ctx = load_context_file(Path(".kyle/context.md"))
@@ -194,7 +203,7 @@ class AgentRunner:
         context = ExecutionContext(
             run_id=run_id,
             goal=goal,
-            max_steps=self._config.agent.max_steps,
+            max_steps=resume.max_steps if resume is not None else self._config.agent.max_steps,
             prefill_messages=history,
             session_notes=notes,
             global_context=global_ctx,
@@ -202,6 +211,9 @@ class AgentRunner:
             recalled_memories=recalled,
             system_prompt_override=system_prompt_override,
         )
+        if resume is not None:
+            # 从断点步续跑,步数预算按快照进度累计
+            context.step = resume.step
         prefill_len = len(history)
 
         async with EventWriter(run_path / "events.jsonl") as writer:
@@ -209,6 +221,13 @@ class AgentRunner:
             await bus.publish(RunStartedEvent(run_id=run_id, goal=goal, ts=_now()))
 
             cancelled = False
+            # durable run:每步快照(run_state.json),run 结束写终态
+            persister: FileRunPersister | None = None
+            if self._config.agent.durable_runs:
+                persister = FileRunPersister(
+                    run_path / SNAPSHOT_FILENAME,
+                    session.id if session is not None else "",
+                )
             try:
                 provider: LLMProvider = self._provider or build_provider(
                     self._config.llm
@@ -256,6 +275,7 @@ class AgentRunner:
                     session_id=session_id_str,
                     router=router,
                     max_parallel_tools=self._config.agent.max_parallel_tools,
+                    persister=persister,
                 )
                 await loop.run(context)
             except asyncio.CancelledError:
@@ -279,6 +299,15 @@ class AgentRunner:
                 )
             )
 
+            # 终态快照:status 非 running,daemon 重启后不再恢复该 run
+            if persister is not None:
+                try:
+                    await persister.persist(context)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "terminal snapshot persist failed run_id=%s", run_id
+                    )
+
         # 成功 run 的结论摘要回写记忆库(截断 300 字,来源标注 run)
         if (
             memory_index is not None
@@ -294,9 +323,9 @@ class AgentRunner:
         if session is not None and store is not None:
             # 持久化前裁掉尾部未配对的 tool_use/tool_result，保证 thread.jsonl 始终平衡；
             # 否则取消 run 留下的孤儿会让后续 read_messages 永久裁掉其后追加的消息
-            if context.compacted:
-                # 自动压缩已把 messages 整体替换为摘要对话，prefill 切片不再有效：
-                # 整表重写 thread.jsonl（原文件自动备份），保证压缩结果跨 run 生效
+            if context.compacted or resume is not None:
+                # 压缩/恢复场景 prefill 切片不再有效:整表重写 thread.jsonl
+                # (原文件自动备份)——恢复场景下快照段落必须一并写入
                 store.write_compacted(
                     session.id, store.trim_orphan_tool_use(context.messages)
                 )

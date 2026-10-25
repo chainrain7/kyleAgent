@@ -257,10 +257,12 @@ class CoreApp:
             logger.info("mcp: starting %d server(s)", len(self._config.mcp.servers))
             await self._mcp_manager.start_all(self._config.mcp.servers)
 
+        # 局部捕获:mypy 无法在 lambda 闭包内保持 Optional 收窄
+        runtime_config = self._config
         self._sessions = SessionManager(
             store,
             runner_factory=lambda: AgentRunner(
-                self._config,  # type: ignore[arg-type]
+                runtime_config,
                 bus=self._bus,
                 trace=self._trace,
                 permission_manager=self._permission_manager,
@@ -287,6 +289,12 @@ class CoreApp:
         server.register("session.close", self._session_close_handler)
         server.register("permission.respond", self._permission_respond_handler)
         server.register("session.compact", self._session_compact_handler)
+
+        # durable run:恢复上次 daemon 中断时仍在运行的 run
+        assert self._sessions is not None
+        recovered = await self._sessions.recover_pending_runs()
+        if recovered:
+            logger.info("durable: %d pending run(s) resumed", recovered)
 
         addr = await server.start()
         logger.info("kyle-core %s listening addr=%s", kyle_agent.__version__, addr)
