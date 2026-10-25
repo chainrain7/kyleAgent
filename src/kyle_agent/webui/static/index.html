@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kyleAgent · Web Console</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2322d3ee'/%3E%3Cstop offset='1' stop-color='%23818cf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M12 8v16M12 16l9-8M12 16l9 8' stroke='%2307090f' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+</head>
+<body>
+<div id="app">
+  <!-- 顶栏 -->
+  <header id="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#818cf8"/>
+        </linearGradient></defs>
+        <rect width="32" height="32" rx="8" fill="url(#bg1)"/>
+        <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
+              stroke-linecap="round" fill="none"/>
+      </svg>
+      <span class="brand-name">kyleAgent</span>
+      <span class="brand-sub">web console</span>
+    </div>
+    <div class="top-status">
+      <div id="meter" class="meter hidden" title="上下文水位 / 缓存命中率">
+        <div class="meter-track"><div id="meterFill" class="meter-fill"></div></div>
+        <span id="meterLabel" class="meter-label"></span>
+      </div>
+      <span id="hitChip" class="chip hidden" title="prompt 缓存命中率"></span>
+      <span id="connDot" class="conn connecting"></span>
+      <span id="connText" class="conn-text">connecting</span>
+    </div>
+  </header>
+
+  <div id="shell">
+    <!-- 侧栏 -->
+    <aside id="sidebar">
+      <button id="btnNew" class="btn primary block">＋ 新会话</button>
+      <div class="side-card">
+        <div class="side-title">会话</div>
+        <div class="kv"><span class="k">id</span><span id="sessionId" class="v mono">—</span></div>
+        <div class="kv"><span class="k">状态</span><span id="sessionState" class="v">—</span></div>
+        <div class="kv"><span class="k">最近 run</span><span id="lastRun" class="v mono">—</span></div>
+      </div>
+      <div class="side-card">
+        <div class="side-title">操作</div>
+        <button id="btnCompact" class="btn block" disabled>压缩上下文 /compact</button>
+        <button id="btnClose" class="btn block danger-ghost" disabled>关闭会话</button>
+      </div>
+      <div class="side-card">
+        <div class="side-title">快捷键</div>
+        <div class="kv"><span class="k">发送</span><span class="v">Enter</span></div>
+        <div class="kv"><span class="k">换行</span><span class="v">Shift + Enter</span></div>
+        <div class="kv"><span class="k">审批</span><span class="v">y / a / n / d</span></div>
+      </div>
+      <div class="side-foot">daemon <span id="coreAddr" class="mono">127.0.0.1:7437</span></div>
+    </aside>
+
+    <!-- 主区 -->
+    <main id="main">
+      <div id="banner" class="banner hidden"></div>
+      <div id="scroller">
+        <div id="transcript">
+          <div id="hero">
+            <pre class="hero-logo" aria-hidden="true">██╗  ██╗██╗   ██╗██╗     ███████╗
+██║ ██╔╝╚██╗ ██╔╝██║     ██╔════╝
+█████╔╝  ╚████╔╝ ██║     █████╗
+██╔═██╗   ╚██╔╝  ██║     ██╔══╝
+██║  ██╗   ██║   ███████╗███████╗
+╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝</pre>
+            <p class="hero-tag">本地 AI Agent 运行时 · daemon + 多客户端</p>
+            <div class="hero-chips">
+              <button class="chip-btn" data-prompt="阅读 README.md 并用三句话总结这个项目">总结当前项目</button>
+              <button class="chip-btn" data-prompt="列出 src 目录结构,指出最核心的三个模块">梳理代码结构</button>
+              <button class="chip-btn" data-prompt="把 hello.txt 的内容改成 kyle rulez 并确认写入成功">试一次写文件</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区 -->
+      <div id="composerWrap">
+        <div id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="给 kyleAgent 下一个目标…(Enter 发送,Shift+Enter 换行)"></textarea>
+          <button id="btnSend" class="send" title="发送" disabled>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </div>
+        <div class="composer-hint">Enter 发送 · Shift+Enter 换行 · 工具审批可用键盘 y/a/n/d</div>
+      </div>
+    </main>
+  </div>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -24,14 +24,23 @@ dependencies = [
 kyle = "kyle_agent.cli.main:main"
 kyle-core = "kyle_agent.core.app:run"
 kyle-tui = "kyle_agent.tui.__main__:main"
+kyle-webui = "kyle_agent.webui.bridge:main"
 
-# ---- Hatch：打 wheel 时从 src 布局收录包 ----
-[tool.hatch.build.targets.wheel]
-packages = ["src/kyle_agent"] # 源码在 src/kyle_agent
+# Web UI(可选):WS↔TCP 桥接器与静态资源服务
+[project.optional-dependencies]
+webui = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "websockets>=12",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+# ---- Hatch：打 wheel 时从 src 布局收录包 ----
+[tool.hatch.build.targets.wheel]
+packages = ["src/kyle_agent"] # 源码在 src/kyle_agent
 
 # ---- 开发期依赖（PEP 735）----
 [dependency-groups]
@@ -40,6 +49,7 @@ dev = [
     "mypy>=1.10",           # 静态类型检查
     "pytest>=8.0",          # 单元测试
     "pytest-asyncio>=0.23", # 异步测试支持
+    "websockets>=12",
 ]
 
 # ---- Ruff：统一代码风格 ----

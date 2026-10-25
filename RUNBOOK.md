@@ -127,3 +127,16 @@ compact 次数；`--compare` 生成前后对比表（模型路由/压缩策略�
 - `~/.kyle/memory.db`(SQLite FTS5):note_save 笔记与成功 run 结论自动入库
 - 每次 run 启动按目标检索 top-k 注入 system prompt(Recalled Memories 段)
 - `memory.enabled = false` 关闭;`memory.top_k` 控制注入条数
+
+---
+
+## Web Console(浏览器前端)
+
+```bash
+uv sync --extra webui     # 一次性:安装 fastapi/uvicorn/websockets
+uv run kyle-webui         # 默认 http://127.0.0.1:8080
+```
+
+- 桥接器只监听 127.0.0.1;daemon 地址取 `KYLE_HOST`/`KYLE_PORT`
+- 浏览器每条 WS 连接对应一条 daemon TCP 连接;桥接器崩溃不影响 daemon 上的 run
+- 前端断线自动重连(1.6s 间隔),重连后 `session.resume` 接回会话
