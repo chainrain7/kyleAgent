@@ -1,0 +1,38 @@
+{
+ "gateway": {
+  "status": "running",
+  "replicas": 2,
+  "error_rate": 0.002,
+  "p99_ms": 120,
+  "memory_mb": 410,
+  "qps": 500,
+  "cpu_pct": 35,
+  "disk_pct": 42,
+  "faults": []
+ },
+ "orders": {
+  "status": "running",
+  "replicas": 2,
+  "error_rate": 0.003,
+  "p99_ms": 95,
+  "memory_mb": 460,
+  "qps": 300,
+  "cpu_pct": 30,
+  "disk_pct": 38,
+  "queue_lag": 0,
+  "db_qps": 60,
+  "cache_hit_pct": 99,
+  "faults": []
+ },
+ "payments": {
+  "status": "running",
+  "replicas": 3,
+  "error_rate": 0.004,
+  "p99_ms": 210,
+  "memory_mb": 520,
+  "qps": 200,
+  "cpu_pct": 40,
+  "disk_pct": 35,
+  "faults": []
+ }
+}
