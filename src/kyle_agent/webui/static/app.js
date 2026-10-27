@@ -108,18 +108,6 @@ function mdRender(src) {
   return html;
 }
 
-const TOOL_ICONS = {
-  bash: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-5-6-5M12 19h8"/></svg>',
-  read_file: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
-  write_file: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>',
-  list_dir: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-  web_search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
-  note_save: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
-  spawn_agent: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.5 8L15.5 16"/></svg>',
-  compact: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16M9 4l-2 4M15 20l2-4"/></svg>',
-};
-const toolIcon = (name) => TOOL_ICONS[name] ||
-  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>';
 
 function previewOf(params) {
   try {
@@ -148,7 +136,7 @@ function breakStream() {
 function streamToken(token) {
   if (!state.streamEl) {
     const msg = el("div", "msg msg-assistant");
-    msg.appendChild(el("div", "avatar", null)).append(el("span", null, "K"));
+    msg.appendChild(el("div", "ava", "K"));
     const body = el("div", "body");
     const text = el("div", "assistant-text");
     text.appendChild(el("span", "caret"));
@@ -168,24 +156,33 @@ function streamToken(token) {
 
 /* ── 工具卡片 ───────────────────────────────────── */
 
+// 参数对象格式化为可读预览
+function fmtParams(params) {
+  return typeof params === "string" ? params : JSON.stringify(params, null, 2);
+}
+
 function toolCard(toolUseId, name, params, container) {
   const card = el("div", "tool running");
   if (container) card.classList.add("nested");
-  const head = el("div", "tool-head");
-  head.appendChild(el("span", "ticon")).innerHTML = toolIcon(name);
-  head.appendChild(el("span", "tool-name", name));
-  head.appendChild(el("span", "tool-params", previewOf(params)));
-  const st = el("span", "tool-state");
-  st.appendChild(el("span", "badge run", "running"));
-  head.appendChild(st);
-  head.appendChild(el("span", "chev", "▸"));
-  const body = el("div", "tool-body");
-  body.appendChild(el("div", "sec", "params"));
-  body.appendChild(el("div", null, typeof params === "string" ? params : JSON.stringify(params, null, 2)));
-  card.append(head, body);
-  head.addEventListener("click", () => card.classList.toggle("open"));
+  const row = el("button", "tool-row");
+  row.type = "button";
+  row.appendChild(el("span", "t-dot"));
+  row.appendChild(el("span", "t-name", name));
+  row.appendChild(el("span", "t-params", previewOf(params)));
+  const meta = el("span", "t-meta");
+  const msEl = el("span", "t-ms", "");
+  const chev = el("span", "t-chev");
+  chev.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+  meta.append(msEl, chev);
+  row.appendChild(meta);
+  const detail = el("div", "tool-detail");
+  detail.appendChild(el("div", "sec", "参数"));
+  const paramsPre = el("pre", null, fmtParams(params));
+  detail.appendChild(paramsPre);
+  card.append(row, detail);
+  row.addEventListener("click", () => card.classList.toggle("open"));
   (container || $("#transcript")).appendChild(card);
-  state.toolCards.set(toolUseId, { el: card, body, st, t0: performance.now() });
+  state.toolCards.set(toolUseId, { el: card, row, detail, msEl, t0: performance.now() });
   scrollBottom();
   return card;
 }
@@ -195,14 +192,14 @@ function toolFinish(toolUseId, payload, isError) {
   if (!c) return;
   c.el.classList.remove("running");
   c.el.classList.add(isError ? "err" : "ok");
-  const badge = c.st.querySelector(".badge");
-  badge.className = "badge " + (isError ? "err" : "ok");
-  badge.textContent = isError ? "failed" : "done";
-  const ms = payload && payload.elapsed_ms !== undefined ? payload.elapsed_ms : Math.round(performance.now() - c.t0);
-  c.st.appendChild(el("span", "ms", `${ms}ms`));
+  const ms = payload && payload.elapsed_ms !== undefined
+    ? payload.elapsed_ms : Math.round(performance.now() - c.t0);
+  c.msEl.textContent = `${ms}ms`;
   if (payload && payload.output !== undefined) {
-    c.body.appendChild(el("div", "sec", isError ? "error" : "output"));
-    c.body.appendChild(el("div", null, String(payload.output)));
+    c.detail.appendChild(el("div", "sec", isError ? "错误" : "输出"));
+    const pre = el("pre", null, String(payload.output));
+    c.detail.appendChild(pre);
+    if (!c.el.classList.contains("open")) c.el.classList.add("open");
   }
 }
 
@@ -211,11 +208,12 @@ function toolFinish(toolUseId, payload, isError) {
 function permCard(e) {
   breakStream();
   const card = el("div", "perm");
-  const title = el("div", "perm-title");
-  title.append(el("span", null, "🔑 工具执行等待审批"));
-  title.appendChild(el("span", "tool-name", e.tool_name || ""));
-  card.appendChild(title);
-  card.appendChild(el("div", "perm-detail", e.param_preview || previewOf(e.params)));
+  const head = el("div", "perm-head");
+  head.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+  head.appendChild(el("span", null, "工具执行需要审批"));
+  head.appendChild(el("span", "perm-tool", e.tool_name || ""));
+  card.appendChild(head);
+  card.appendChild(el("pre", "perm-cmd", e.param_preview || previewOf(e.params)));
   const actions = el("div", "perm-actions");
   const choices = [
     ["y", "allow_once", "允许一次"], ["a", "always_allow", "始终允许"],
@@ -223,7 +221,7 @@ function permCard(e) {
   ];
   for (const [key, decision, label] of choices) {
     const b = el("button", "perm-btn");
-    b.appendChild(el("span", "keycap", key));
+    b.appendChild(el("kbd", null, key));
     b.appendChild(el("span", null, label));
     b.addEventListener("click", () => respondPermission(e.tool_use_id, decision));
     actions.appendChild(b);
@@ -255,10 +253,11 @@ async function respondPermission(toolUseId, decision) {
 function subagentStart(e) {
   breakStream();
   const box = el("div", "subagent");
-  const head = el("div", "subagent-head");
-  head.appendChild(el("span", "ticon")).innerHTML = toolIcon("spawn_agent");
+  const head = el("div", "sa-head");
+  head.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.5 8L15.5 16"/></svg>';
   head.appendChild(el("span", null, `subagent · ${e.description || ""}`));
-  head.appendChild(el("span", "badge run", e.run_id));
+  const badge = el("span", "sa-badge", e.run_id);
+  head.appendChild(badge);
   box.appendChild(head);
   append(box);
   state.subagents.set(e.run_id, box);
@@ -268,10 +267,10 @@ function subagentStart(e) {
 function subagentEnd(e) {
   const box = state.subagents.get(e.run_id);
   if (box) {
-    const badge = box.querySelector(".badge");
+    const badge = box.querySelector(".sa-badge");
     if (badge) {
       const ok = e.status === "success";
-      badge.className = "badge " + (ok ? "ok" : "err");
+      badge.className = "sa-badge " + (ok ? "ok" : "err");
       badge.textContent = `${e.status} · ${e.run_id}`;
     }
   }
@@ -299,7 +298,7 @@ function handleEvent(e) {
       state.lastRunId = e.run_id;
       setConn("busy", "running");
       setSessionUI();
-      append(el("div", "divider", `run ${e.run_id}`), true);
+      append(el("div", "runline", `run ${e.run_id}`), true);
       break;
     }
     case "run.finished": {
@@ -318,7 +317,7 @@ function handleEvent(e) {
       const meter = $("#meter"), fill = $("#meterFill");
       meter.classList.remove("hidden");
       fill.style.width = pct + "%";
-      fill.className = "meter-fill" + (pct >= 85 ? " err" : pct >= 60 ? " warn" : "");
+      fill.className = pct >= 85 ? "err" : pct >= 60 ? "warn" : "";
       $("#meterLabel").textContent = `ctx ${pct}%`;
       const hit = e.cache_hit_rate;
       if (hit !== undefined && hit !== null) {

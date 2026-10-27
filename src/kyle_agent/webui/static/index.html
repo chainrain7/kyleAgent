@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kyleAgent · Web Console</title>
+<title>kyleAgent</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2322d3ee'/%3E%3Cstop offset='1' stop-color='%23818cf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M12 8v16M12 16l9-8M12 16l9 8' stroke='%2307090f' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
 </head>
 <body>
 <div id="app">
-  <!-- 顶栏 -->
+
   <header id="topbar">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -21,79 +21,107 @@
               stroke-linecap="round" fill="none"/>
       </svg>
       <span class="brand-name">kyleAgent</span>
-      <span class="brand-sub">web console</span>
     </div>
     <div class="top-status">
-      <div id="meter" class="meter hidden" title="上下文水位 / 缓存命中率">
-        <div class="meter-track"><div id="meterFill" class="meter-fill"></div></div>
-        <span id="meterLabel" class="meter-label"></span>
+      <div id="meter" class="meter hidden" title="上下文水位">
+        <div class="meter-bar"><i id="meterFill"></i></div>
+        <span id="meterLabel" class="meter-val">ctx 0%</span>
       </div>
       <span id="hitChip" class="chip hidden" title="prompt 缓存命中率"></span>
-      <span id="connDot" class="conn connecting"></span>
-      <span id="connText" class="conn-text">connecting</span>
+      <span class="conn-wrap">
+        <span id="connDot" class="conn connecting"></span>
+        <span id="connText" class="conn-text">connecting</span>
+      </span>
     </div>
   </header>
 
   <div id="shell">
-    <!-- 侧栏 -->
+
     <aside id="sidebar">
-      <button id="btnNew" class="btn primary block">＋ 新会话</button>
-      <div class="side-card">
-        <div class="side-title">会话</div>
-        <div class="kv"><span class="k">id</span><span id="sessionId" class="v mono">—</span></div>
-        <div class="kv"><span class="k">状态</span><span id="sessionState" class="v">—</span></div>
-        <div class="kv"><span class="k">最近 run</span><span id="lastRun" class="v mono">—</span></div>
-      </div>
-      <div class="side-card">
-        <div class="side-title">操作</div>
-        <button id="btnCompact" class="btn block" disabled>压缩上下文 /compact</button>
-        <button id="btnClose" class="btn block danger-ghost" disabled>关闭会话</button>
-      </div>
-      <div class="side-card">
-        <div class="side-title">快捷键</div>
-        <div class="kv"><span class="k">发送</span><span class="v">Enter</span></div>
-        <div class="kv"><span class="k">换行</span><span class="v">Shift + Enter</span></div>
-        <div class="kv"><span class="k">审批</span><span class="v">y / a / n / d</span></div>
-      </div>
-      <div class="side-foot">daemon <span id="coreAddr" class="mono">127.0.0.1:7437</span></div>
+      <button id="btnNew" class="btn-new">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        新会话
+      </button>
+
+      <section class="side-sec">
+        <div class="sec-label">当前会话</div>
+        <div class="side-kv"><span>id</span><b id="sessionId" class="mono">—</b></div>
+        <div class="side-kv"><span>状态</span><b id="sessionState">—</b></div>
+        <div class="side-kv"><span>最近 run</span><b id="lastRun" class="mono">—</b></div>
+      </section>
+
+      <section class="side-sec">
+        <div class="sec-label">操作</div>
+        <button id="btnCompact" class="side-btn" disabled>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 4 8 9M14 20l2-5"/></svg>
+          压缩上下文
+        </button>
+        <button id="btnClose" class="side-btn danger" disabled>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          关闭会话
+        </button>
+      </section>
+
+      <section class="side-sec">
+        <div class="sec-label">快捷键</div>
+        <div class="side-kv"><span>发送</span><b class="kbd">Enter</b></div>
+        <div class="side-kv"><span>换行</span><b class="kbd">⇧ Enter</b></div>
+        <div class="side-kv"><span>审批</span><b class="kbd">y a n d</b></div>
+      </section>
+
+      <footer class="side-foot">daemon <span id="coreAddr" class="mono">127.0.0.1:7437</span></footer>
     </aside>
 
-    <!-- 主区 -->
     <main id="main">
       <div id="banner" class="banner hidden"></div>
       <div id="scroller">
         <div id="transcript">
+
           <div id="hero">
-            <pre class="hero-logo" aria-hidden="true">██╗  ██╗██╗   ██╗██╗     ███████╗
-██║ ██╔╝╚██╗ ██╔╝██║     ██╔════╝
-█████╔╝  ╚████╔╝ ██║     █████╗
-██╔═██╗   ╚██╔╝  ██║     ██╔══╝
-██║  ██╗   ██║   ███████╗███████╗
-╚═╝  ╚═╝   ╚═╝   ╚══════╝╚══════╝</pre>
-            <p class="hero-tag">本地 AI Agent 运行时 · daemon + 多客户端</p>
+            <svg class="hero-mark" viewBox="0 0 32 32" aria-hidden="true">
+              <defs><linearGradient id="hg1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#818cf8"/>
+              </linearGradient></defs>
+              <rect width="32" height="32" rx="8" fill="url(#hg1)"/>
+              <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
+                    stroke-linecap="round" fill="none"/>
+            </svg>
+            <h1 class="hero-title">kyleAgent</h1>
+            <p class="hero-sub">本地 Agent 运行时 —— 规划、工具调用、审批与记忆,全程可视</p>
             <div class="hero-chips">
-              <button class="chip-btn" data-prompt="阅读 README.md 并用三句话总结这个项目">总结当前项目</button>
-              <button class="chip-btn" data-prompt="列出 src 目录结构,指出最核心的三个模块">梳理代码结构</button>
-              <button class="chip-btn" data-prompt="把 hello.txt 的内容改成 kyle rulez 并确认写入成功">试一次写文件</button>
+              <button class="chip-btn" data-prompt="阅读 README.md 并用三句话总结这个项目">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                总结当前项目
+              </button>
+              <button class="chip-btn" data-prompt="列出 src 目录结构,指出最核心的三个模块">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                梳理代码结构
+              </button>
+              <button class="chip-btn" data-prompt="把 hello.txt 的内容改成 kyle rulez 并确认写入成功">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+                试一次写文件
+              </button>
             </div>
           </div>
+
         </div>
       </div>
 
-      <!-- 输入区 -->
       <div id="composerWrap">
         <div id="composer" class="composer">
-          <textarea id="input" rows="1" placeholder="给 kyleAgent 下一个目标…(Enter 发送,Shift+Enter 换行)"></textarea>
+          <textarea id="input" rows="1" placeholder="给 kyleAgent 一个目标…"></textarea>
           <button id="btnSend" class="send" title="发送" disabled>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
             </svg>
           </button>
         </div>
-        <div class="composer-hint">Enter 发送 · Shift+Enter 换行 · 工具审批可用键盘 y/a/n/d</div>
+        <div class="composer-hint"><kbd>Enter</kbd> 发送 · <kbd>⇧ Enter</kbd> 换行 · 审批时按 <kbd>y</kbd><kbd>a</kbd><kbd>n</kbd><kbd>d</kbd></div>
       </div>
     </main>
+
   </div>
 </div>
 <div id="toast" class="toast hidden"></div>
