@@ -27,11 +27,14 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from scripts.run_metrics import compute_metrics  # noqa: E402
 
-# 评测预授的工具全集(与 runner._build_registry 的注册清单保持一致)
+# 评测预授的工具全集(基础 + oncall 领域工具;预授即"审批由断言替代")
 ALL_TOOL_NAMES: tuple[str, ...] = (
     "read_file", "bash", "write_file", "list_dir", "web_search",
     "note_save", "task_create", "task_update", "task_list", "task_get",
     "spawn_agent", "agent_result",
+    "alerts_list", "service_status", "logs_query", "metrics_query",
+    "runbook_search", "service_restart", "scale_up", "log_cleanup",
+    "submit_diagnosis",
 )
 
 
@@ -41,7 +44,7 @@ class EvalTask:
     id: str
     # 中文或英文的 agent goal(与真实使用方式一致)
     goal: str
-    # 任务分类(read/write/plan/memory/complex)
+    # 任务分类(read/write/plan/memory/complex/oncall)
     category: str
     # 准备工作区初始状态
     setup: Callable[[Path], None]
@@ -50,6 +53,8 @@ class EvalTask:
     max_steps: int = 8
     # 备注:该任务考察点(报告展示用)
     note: str = ""
+    # 可选:run 前定制 KyleConfig(如开 oncall、指 env_dir);root 为任务隔离根
+    config_patch: Callable[[Any, Path], None] | None = None
 
 
 @dataclass
@@ -90,6 +95,8 @@ async def run_task(
     config.agent.max_steps = task.max_steps
     config.compaction.auto_threshold = 0.0
     config.memory.enabled = False  # 评测确定性:不注入跨会话记忆
+    if task.config_patch is not None:
+        task.config_patch(config, root / task.id)
 
     collected: list[BaseModel] = []
 
