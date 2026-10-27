@@ -55,37 +55,18 @@ class Topology:
         ]
 
 
-# 解析 YAML 子集拓扑文件(仅 services/externals 两键,避免引入 pyyaml)
+# 解析 services.toml 拓扑(标准库 tomllib,避免手写 YAML 子集的脆弱性)
 def _parse_topology(text: str) -> Topology:
+    import tomllib
+
+    data = tomllib.loads(text)
     services: dict[str, dict[str, Any]] = {}
-    externals: list[str] = []
-    current: str | None = None
-    for raw in text.splitlines():
-        line = raw.rstrip()
-        if not line or line.lstrip().startswith("#"):
-            continue
-        stripped = line.strip()
-        if line.startswith("services:"):
-            current = "services"
-        elif line.startswith("externals:"):
-            current = "externals"
-        elif current == "services" and line.startswith("  ") and ":" in stripped:
-            name, _, rest = stripped.partition(":")
-            info: dict[str, Any] = {"replicas": 2, "depends_on": []}
-            services[name.strip()] = info
-            rest = rest.strip()
-            if rest.startswith("{") and rest.endswith("}"):
-                for part in rest[1:-1].split(","):
-                    k, _, v = part.partition(":")
-                    k, v = k.strip(), v.strip()
-                    if k == "depends_on":
-                        info["depends_on"] = [
-                            d.strip() for d in v.strip("[]").split(",") if d.strip()
-                        ]
-                    elif k == "replicas":
-                        info["replicas"] = int(v)
-        elif current == "externals" and stripped.startswith("- "):
-            externals.append(stripped[2:].strip())
+    for item in data.get("service", []):
+        services[str(item["name"])] = {
+            "replicas": int(item.get("replicas", 2)),
+            "depends_on": [str(d) for d in item.get("depends_on", [])],
+        }
+    externals = [str(e) for e in data.get("externals", [])]
     return Topology(services=services, externals=externals)
 
 
@@ -139,7 +120,7 @@ class SimEnv:
     # 读取服务拓扑(services + externals + 依赖)
     def topology(self) -> Topology:
         return _parse_topology(
-            (self.dir / "services.yaml").read_text(encoding="utf-8")
+            (self.dir / "services.toml").read_text(encoding="utf-8")
         )
 
     # 读取全部服务动态状态

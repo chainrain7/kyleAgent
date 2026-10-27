@@ -1,9 +1,0 @@
-# OnCallCopilot 模拟生产环境拓扑(baseline,勿手改 env 副本)
-services:
-  gateway:   { replicas: 2, depends_on: [orders, payments] }
-  orders:    { replicas: 2, depends_on: [orders-db] }
-  payments:  { replicas: 3, depends_on: [payments-db, risk-svc] }
-externals:
-  - orders-db
-  - payments-db
-  - risk-svc

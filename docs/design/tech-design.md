@@ -52,7 +52,7 @@
 
 ```
 <env_dir>/                          # 默认 ~/.kyle/oncall/env,可用 KYLE_ONCALL_ENV 覆盖
-├── services.yaml                   # 服务拓扑(静态)
+├── services.toml                   # 服务拓扑(静态)
 ├── state.json                      # 动态状态(工具的写目标)
 ├── alerts.json                     # 活跃告警队列
 ├── metrics/<service>.csv           # 15min 窗口时序指标
@@ -60,7 +60,7 @@
 └── reports/<alert_id>.md           # 处置报告输出
 ```
 
-`services.yaml`——拓扑与影响面推导依据:
+`services.toml`——拓扑与影响面推导依据:
 
 ```yaml
 services:
