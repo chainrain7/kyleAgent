@@ -39,6 +39,16 @@ class ToolPolicy:
 
 DEFAULT_POLICIES: dict[str, ToolPolicy] = {
     "bash":        ToolPolicy(default=PermissionDecision.ASK),
+    # OnCallCopilot 领域工具:只读放行,变更(重启/扩容/清盘)必须审批
+    "alerts_list":     ToolPolicy(default=PermissionDecision.ALLOW),
+    "service_status":  ToolPolicy(default=PermissionDecision.ALLOW),
+    "logs_query":      ToolPolicy(default=PermissionDecision.ALLOW),
+    "metrics_query":   ToolPolicy(default=PermissionDecision.ALLOW),
+    "runbook_search":  ToolPolicy(default=PermissionDecision.ALLOW),
+    "submit_diagnosis": ToolPolicy(default=PermissionDecision.ALLOW),
+    "service_restart": ToolPolicy(default=PermissionDecision.ASK),
+    "scale_up":        ToolPolicy(default=PermissionDecision.ASK),
+    "log_cleanup":     ToolPolicy(default=PermissionDecision.ASK),
     # 只读但外发查询到外部服务,与 bash 同级默认询问
     "web_search":  ToolPolicy(default=PermissionDecision.ASK),
     "write_file": ToolPolicy(default=PermissionDecision.ASK),
@@ -54,6 +64,9 @@ _UNKNOWN_TOOL_DEFAULT = PermissionDecision.ASK
 _PREVIEW_KEY: dict[str, str] = {
     "bash":       "command",
     "web_search": "query",
+    "service_restart": "service",
+    "scale_up": "service",
+    "log_cleanup": "service",
     "read_file":  "path",
     "write_file": "path",
     "list_dir":   "path",

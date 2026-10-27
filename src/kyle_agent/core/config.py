@@ -78,6 +78,13 @@ class MemoryConfig:
 
 
 @dataclass
+class OncallConfig:
+    # OnCallCopilot 值班业务层:注册领域工具(诊断/处置)
+    enabled: bool = False
+    env_dir: str = "~/.kyle/oncall/env"  # 模拟生产环境目录
+
+
+@dataclass
 class McpServerConfig:
     name: str
     transport: str = "stdio"       # "stdio" | "tcp"
@@ -104,6 +111,7 @@ class KyleConfig:
     permission: PermissionConfig = field(default_factory=PermissionConfig)
     compaction: CompactionConfig = field(default_factory=CompactionConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    oncall: OncallConfig = field(default_factory=OncallConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
 
 
@@ -141,7 +149,7 @@ def get_config() -> KyleConfig:
 def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
     known = {
         "core", "logging", "agent", "llm", "trace", "permission", "compaction",
-        "memory", "mcp",
+        "memory", "oncall", "mcp",
     }
     unknown = set(data.keys()) - known
     if unknown:
@@ -344,6 +352,24 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                 raise SystemExit("Config error: memory.top_k must be a positive integer")
             config.memory.top_k = val
 
+    if "oncall" in data:
+        oc = data["oncall"]
+        if not isinstance(oc, dict):
+            raise SystemExit("Config error: [oncall] must be a table")
+        unknown_oc: set[str] = set(oc.keys()) - {"enabled", "env_dir"}
+        if unknown_oc:
+            raise SystemExit(f"Unknown [oncall] keys: {', '.join(sorted(unknown_oc))}")
+        if "enabled" in oc:
+            val = oc["enabled"]
+            if not isinstance(val, bool):
+                raise SystemExit("Config error: oncall.enabled must be a boolean")
+            config.oncall.enabled = val
+        if "env_dir" in oc:
+            val = oc["env_dir"]
+            if not isinstance(val, str):
+                raise SystemExit("Config error: oncall.env_dir must be a string")
+            config.oncall.env_dir = val
+
     if "mcp" in data:
         mcp = data["mcp"]
         if not isinstance(mcp, dict):
@@ -511,6 +537,14 @@ def _apply_env(config: KyleConfig) -> None:
                 f"Config error: KYLE_COMPACT_TOOL_LIMIT must be an integer, "
                 f"got: {compact_tool_limit!r}"
             )
+
+    oncall_enabled = os.environ.get("KYLE_ONCALL_ENABLED")
+    if oncall_enabled is not None:
+        config.oncall.enabled = oncall_enabled.lower() not in ("0", "false", "no")
+
+    oncall_env = os.environ.get("KYLE_ONCALL_ENV")
+    if oncall_env is not None:
+        config.oncall.env_dir = oncall_env
 
     compact_tool_keep = os.environ.get("KYLE_COMPACT_TOOL_KEEP")
     if compact_tool_keep is not None:

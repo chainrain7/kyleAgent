@@ -115,7 +115,7 @@ class FaultScenario:
 | `service_status` | `service?` | ALLOW | 读 state.json(缺省=全部,含 externals 可达性) |
 | `logs_query` | `service, keyword?, level?, tail=50` | ALLOW | 读日志文件过滤,尾切 ≤80 行;keyword 命中行上下文 ±2 行 |
 | `metrics_query` | `service, metric?, window_min=15` | ALLOW | 读 CSV,返回 current/mean/max/趋势与突变点 |
-| `runbook_search` | `query` | ALLOW | FTS5 检索 runbooks/,top-3(复用 memory 基建) |
+| `runbook_search` | `query` | ALLOW | 关键词打分检索 top-3(库<20 篇,免 FTS 索引开销) |
 | `service_restart` | `service` | **ASK** | 剧本注入的故障标记清除→恢复段追加→审计日志;幂等(已 running 则提示) |
 | `scale_up` | `service, delta=1` | **ASK** | replicas+=delta,容量类故障恢复;上限 6 |
 | `log_cleanup` | `service` | **ASK** | 磁盘满类故障恢复(清日志尾段) |

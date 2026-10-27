@@ -165,3 +165,60 @@ async def test_unknown_service_errors(tmp_path: Path) -> None:
 async def _pick(tools: list, name: str, params: dict) -> object:
     tool = next(t for t in tools if t.name == name)
     return await tool.invoke(params)
+
+
+# 功能:oncall 工具权限策略——读类/结论放行,变更类强制 ASK
+# 设计:注册表层面锁定安全语义;evaluate 与 DEFAULT_POLICIES 双通道一致
+def test_oncall_permission_policies() -> None:
+    from kyle_agent.core.permissions.policy import (
+        DEFAULT_POLICIES,
+        PermissionDecision,
+        evaluate,
+    )
+
+    for name in ("alerts_list", "service_status", "logs_query",
+                 "metrics_query", "runbook_search", "submit_diagnosis"):
+        assert DEFAULT_POLICIES[name].default is PermissionDecision.ALLOW, name
+        assert evaluate(name, {}) is PermissionDecision.ALLOW, name
+    for name in ("service_restart", "scale_up", "log_cleanup"):
+        assert DEFAULT_POLICIES[name].default is PermissionDecision.ASK, name
+        assert evaluate(name, {"service": "orders"}) is PermissionDecision.ASK, name
+
+
+# 功能:runner 注册开关——[oncall] enabled 时领域工具入注册表
+# 设计:CapturingProvider 截获 tool_schemas;enabled 后含 service_restart
+#       与 submit_diagnosis,关闭时不含;默认关闭零行为变化
+async def test_runner_registers_oncall_tools_when_enabled(tmp_path: Path) -> None:
+    from kyle_agent.core.config import KyleConfig
+    from kyle_agent.core.llm.types import LlmResponse
+    from kyle_agent.core.runner import AgentRunner
+
+    class _Cap:
+        def __init__(self) -> None:
+            self.names: list[str] = []
+
+        async def chat(self, messages, tool_schemas, bus, run_id, *,
+                       step=0, system=None, model=None, strategy="static"):
+            self.names = [str(s.get("name")) for s in tool_schemas]
+            return LlmResponse(stop_reason="end_turn", text="ok")
+
+    env_dir = tmp_path / "oncall-env"
+    from kyle_agent.oncall.sim import SimEnv as _Sim
+    _Sim.reset(env_dir)
+
+    cfg = KyleConfig()
+    cfg.memory.enabled = False
+    cfg.oncall.enabled = True
+    cfg.oncall.env_dir = str(env_dir)
+    provider_on = _Cap()
+    await AgentRunner(cfg, provider=provider_on, runs_dir=tmp_path / "runs").run_and_capture("g")
+    assert "service_restart" in provider_on.names
+    assert "submit_diagnosis" in provider_on.names
+    assert "alerts_list" in provider_on.names
+
+    cfg2 = KyleConfig()
+    cfg2.memory.enabled = False  # 默认 oncall.enabled=False
+    provider_off = _Cap()
+    await AgentRunner(cfg2, provider=provider_off, runs_dir=tmp_path / "runs2").run_and_capture("g")
+    assert "service_restart" not in provider_off.names
+    assert "submit_diagnosis" not in provider_off.names

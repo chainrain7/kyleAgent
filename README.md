@@ -161,6 +161,8 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `memory.enabled` | bool | `true` | — |
 | `memory.db` | str | `~/.kyle/memory.db` | — |
 | `memory.top_k` | int | `3` | — |
+| `oncall.enabled` | bool | `false` | `KYLE_ONCALL_ENABLED` |
+| `oncall.env_dir` | str | `~/.kyle/oncall/env` | `KYLE_ONCALL_ENV` |
 
 另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 Anthropic 后端的必要凭据；`llm.provider = "openai"` 时改用 `OPENAI_API_KEY`（可选 `OPENAI_BASE_URL`，如 `https://api.deepseek.com/v1`）。`web_search` 的 JSON 后端用 `KYLE_SEARCH_API_KEY` + `KYLE_SEARCH_ENDPOINT` 配置，不配置则使用免 key 的 DuckDuckGo 后端。
 
@@ -407,12 +409,22 @@ kyleCode/
 
 ## 路线图:OnCallCopilot 业务层(进行中)
 
-在运行时之上构建的**面向 SRE 的智能值班助手**业务层:模拟生产环境(3 微服务拓扑)、
-20 个故障演练剧本、7 个领域工具(变更操作强制审批)、三重断言业务评测
-(定位正确 / 处置正确 / **零越权**)、值班工作台(告警队列 + 演练控制台 + 处置报告)。
-设计文档见 [docs/product/PRD.md](docs/product/PRD.md) ·
+在运行时之上构建的**面向 SRE 的智能值班助手**业务层。当前进度:
+
+- ✅ **Phase 0** 产品文档:PRD / 技术设计 / 高保真原型(四画板截图)
+- ✅ **Phase 1** 模拟生产环境:纯文件微服务拓扑(gateway/orders/payments + 3 外部依赖)、
+  时间物化(指标窗口恒为最近 15 分钟)、**20 个故障剧本**(修复类 14 / 诊断类 6)、
+  注入 CLI(`uv run python -m kyle_agent.oncall.inject --list`)
+- ✅ **Phase 2** 领域工具层:9 个值班工具(只读四件套 / runbook 检索 / 变更三件套
+  **默认 ASK 审批** / submit_diagnosis 结构化结论)、**精确恢复语义**(动作-故障类型
+  匹配、传导自动解除、告警自动 resolved)、9 篇 runbook 知识库;
+  配置 `[oncall] enabled = true` 开启
+- ⏳ Phase 3 业务评测集(20 剧本三重断言 + cassette)
+- ⏳ Phase 4 值班工作台前端 · Phase 5 量化报告与简历交付
+
+设计文档:[docs/product/PRD.md](docs/product/PRD.md) ·
 [docs/design/tech-design.md](docs/design/tech-design.md) ·
-[docs/product/mockups.md](docs/product/mockups.md)。
+[docs/product/mockups.md](docs/product/mockups.md)
 
 ## 开发阶段
 
