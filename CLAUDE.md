@@ -66,6 +66,10 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **OnCallCopilot** (in progress, Phase 0 docs landed): SRE on-call domain layer on
+  top of the runtime — sim environment, 20 fault scenarios, domain tools with
+  approval-gated mutations, triple-assertion evals. See docs/product/PRD.md and
+  docs/design/tech-design.md before touching `oncall/`.
 - **Web Console** (`src/kyle_agent/webui/`): FastAPI WS↔TCP relay + static
   single-page frontend (optional deps `[webui]`, entry `kyle-webui`). The bridge
   never parses or rewrites protocol messages; frontend has no build step.
