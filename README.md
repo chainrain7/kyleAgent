@@ -405,6 +405,15 @@ kyleCode/
 └── pyproject.toml
 ```
 
+## 路线图:OnCallCopilot 业务层(进行中)
+
+在运行时之上构建的**面向 SRE 的智能值班助手**业务层:模拟生产环境(3 微服务拓扑)、
+20 个故障演练剧本、7 个领域工具(变更操作强制审批)、三重断言业务评测
+(定位正确 / 处置正确 / **零越权**)、值班工作台(告警队列 + 演练控制台 + 处置报告)。
+设计文档见 [docs/product/PRD.md](docs/product/PRD.md) ·
+[docs/design/tech-design.md](docs/design/tech-design.md) ·
+[docs/product/mockups.md](docs/product/mockups.md)。
+
 ## 开发阶段
 
 项目按以下阶段递进实现，每个阶段对应一个可运行、可验证的系统状态：
