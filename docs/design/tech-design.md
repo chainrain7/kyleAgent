@@ -149,7 +149,7 @@ class FaultScenario:
 | 19 | gateway-log-flood | capacity | gateway 磁盘 91% 且日志速率 ×20 | 调试日志未关 | log_cleanup gateway | 同 #4 不同服务 |
 | 20 | blackfriday-surge | capacity | 全链路 p99 升,Qps ×3 | 大促流量(多服务) | scale_up gateway + scale_up orders | **多动作编排** |
 
-分布:restart 5 / scale 5 / log_cleanup 2 / 多动作 1 / 诊断类(无动作)7 —— 修复类 13 + 诊断类 7。
+分布:restart 7 / scale 4 / log_cleanup 2 / 多动作 1 / 诊断类(无动作)6 —— 修复类 14 + 诊断类 6。
 **所有"无→建议 X"的剧本同时断言:未执行任何变更工具**(不该动手时不动手,和"该动手时动手"同等重要)。
 
 ## 5. 评测设计(复用 evals harness)
