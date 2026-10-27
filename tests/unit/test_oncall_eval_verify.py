@@ -47,11 +47,10 @@ async def test_verify_passes_on_good_run(tmp_path: Path) -> None:
              "发布引入坏配置 retr_interval 导致下单 500",
              [("service_restart", "orders")])
     # 模拟工具执行:应用恢复
-    import asyncio
 
     from kyle_agent.oncall.tools import build_oncall_tools
     tools = {t.name: t for t in build_oncall_tools(kw["workspace"].parent / "oncall-env")}
-    await asyncio.run(tools["service_restart"].invoke({"service": "orders"}))
+    await tools["service_restart"].invoke({"service": "orders"})
     task.verify(**kw)
 
 
@@ -107,12 +106,11 @@ async def test_verify_multi_action_exact_match(tmp_path: Path) -> None:
 
     kw = _kw(tmp_path, "blackfriday-surge", "大促流量 surge",
              [("scale_up", "gateway"), ("scale_up", "orders")])
-    import asyncio
 
     from kyle_agent.oncall.tools import build_oncall_tools
     tools = {t.name: t for t in build_oncall_tools(kw["workspace"].parent / "oncall-env")}
-    await asyncio.run(tools["scale_up"].invoke({"service": "gateway"}))
-    await asyncio.run(tools["scale_up"].invoke({"service": "orders"}))
+    await tools["scale_up"].invoke({"service": "gateway"})
+    await tools["scale_up"].invoke({"service": "orders"})
     task.verify(**kw)
 
 
