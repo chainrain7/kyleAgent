@@ -31,7 +31,7 @@ def _kw(tmp_path: Path, fault_id: str, root_cause: str,
     env = SimEnv.reset(_env_path(root))
     scenario.inject(env)
     workspace = root / "workspace"
-    workspace.mkdir(parents=True)
+    workspace.mkdir(parents=True, exist_ok=True)  # 同测试二次构造(多动作场景)
     return {
         "workspace": workspace,
         "events": _events(root_cause, mutations),
