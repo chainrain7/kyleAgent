@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>OnCallCopilot · 高保真原型 · v0.1</title>
+<style>
+/* ══════════════ 原型画布与文档样式 ══════════════ */
+* { box-sizing: border-box; margin: 0; }
+body {
+  background: #050507;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+               "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #ededf2;
+  padding: 48px 0 120px;
+  -webkit-font-smoothing: antialiased;
+}
+.doc { width: 1280px; margin: 0 auto; }
+.doc-head { margin-bottom: 40px; }
+.doc-head h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.doc-head p { color: #7e7e8c; font-size: 13px; margin-top: 6px; line-height: 1.7; }
+.artboard { margin: 56px 0; }
+.ab-label {
+  display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+}
+.ab-label .no {
+  font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+  color: #2dd4ee; letter-spacing: 0.08em;
+}
+.ab-label .name { font-size: 14px; font-weight: 650; }
+.ab-label .meta { font-size: 11.5px; color: #54545f; }
+.ab-frame {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+  background: #09090c;
+}
+
+/* ══════════════ 应用设计系统(与 Web Console 同源) ══════════════ */
+:root {
+  --bg0:#09090c; --bg1:#0d0d12; --bg2:#121218; --bg3:#1a1a22; --bg4:#22222c;
+  --line:rgba(255,255,255,0.065); --line-2:rgba(255,255,255,0.11); --line-3:rgba(255,255,255,0.18);
+  --t1:#ededf2; --t2:#b8b8c4; --t3:#7e7e8c; --t4:#54545f;
+  --a1:#2dd4ee; --a2:#8a8cf9;
+  --ok:#3fdd97; --err:#ff7a7a; --warn:#f5c04e;
+  --grad:linear-gradient(135deg,#2dd4ee,#8a8cf9);
+  --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+}
+.app { display:flex; flex-direction:column; width: 1280px; height: 820px; }
+
+/* 顶栏 */
+.topbar {
+  height:52px; flex:none; display:flex; align-items:center; justify-content:space-between;
+  padding:0 18px; border-bottom:1px solid var(--line); background:#0b0b10;
+}
+.brand { display:flex; align-items:center; gap:9px; }
+.brand .mark { width:22px; height:22px; border-radius:6px; background:var(--grad);
+  display:grid; place-items:center; font-size:12px; font-weight:800; color:#07090f; }
+.brand b { font-size:14.5px; font-weight:650; letter-spacing:-0.01em; }
+.brand span { font-size:12px; color:var(--t4); }
+.top-status { display:flex; align-items:center; gap:14px; font-size:12px; color:var(--t3); }
+.meter { display:flex; align-items:center; gap:8px; }
+.meter .bar { width:84px; height:3px; border-radius:99px; background:var(--bg4); overflow:hidden; }
+.meter .bar i { display:block; height:100%; width:34%; background:var(--grad); }
+.meter .val { font-family:var(--mono); font-size:11px; color:var(--t4); }
+.chip { font-size:11.5px; border:1px solid var(--line-2); background:var(--bg1);
+  border-radius:99px; padding:2.5px 10px; color:var(--t3); font-variant-numeric:tabular-nums; }
+.chip.ok { color:var(--ok); border-color:rgba(63,221,151,.25); }
+.conn-wrap { display:flex; align-items:center; gap:7px; }
+.conn { width:7px; height:7px; border-radius:50%; background:var(--ok); box-shadow:0 0 6px rgba(63,221,151,.5); }
+
+.shell { flex:1; display:flex; min-height:0; }
+
+/* 侧栏 */
+.sidebar { width:248px; flex:none; border-right:1px solid var(--line); padding:14px 12px 12px;
+  display:flex; flex-direction:column; gap:16px; overflow:hidden; }
+.drill-row { display:flex; gap:8px; }
+.btn-drill {
+  flex:1; height:32px; display:flex; align-items:center; justify-content:center; gap:7px;
+  font-size:12.5px; font-weight:600; color:var(--t1); background:var(--bg2);
+  border:1px solid var(--line-2); border-radius:10px;
+}
+.btn-drill.ghost { flex:0 0 auto; padding:0 10px; color:var(--t3); }
+.sec-label { font-size:10.5px; font-weight:650; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--t4); padding:0 8px; margin-bottom:7px; }
+.side-sec { display:flex; flex-direction:column; }
+
+.alert-card { border:1px solid rgba(245,192,78,.4); background:rgba(245,192,78,.05);
+  border-radius:11px; padding:9px 11px; margin:0 4px 8px; }
+.alert-card .row1 { display:flex; align-items:center; gap:6px; font-size:10.5px;
+  font-weight:650; letter-spacing:.04em; }
+.alert-card.firing .row1 { color:var(--warn); }
+.alert-card .dot { width:6px; height:6px; border-radius:50%; background:var(--warn);
+  box-shadow:0 0 6px rgba(245,192,78,.6); }
+.alert-card .svc { font-family:var(--mono); font-size:11.5px; color:var(--t1); margin:5px 0 2px; }
+.alert-card .sum { font-size:11.5px; color:var(--t3); line-height:1.45; }
+.alert-card .stat { margin-left:auto; font-weight:500; color:var(--t4); }
+.alert-card.resolved { border-color:var(--line); background:var(--bg1); opacity:.72; }
+.alert-card.resolved .row1 { color:var(--t3); }
+.alert-card.resolved .dot { background:var(--ok); box-shadow:none; }
+
+.svc-row { display:flex; align-items:center; gap:8px; padding:5.5px 8px; margin:0 4px;
+  border-radius:8px; font-size:12px; color:var(--t2); }
+.svc-row:hover { background:var(--bg2); }
+.svc-row .sdot { width:7px; height:7px; border-radius:50%; background:var(--ok); }
+.svc-row.warn .sdot { background:var(--warn); box-shadow:0 0 6px rgba(245,192,78,.55); }
+.svc-row .nm { font-family:var(--mono); font-size:11.5px; }
+.svc-row .m { margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--t4);
+  font-variant-numeric:tabular-nums; }
+.svc-row.warn .m b { color:var(--warn); font-weight:600; }
+.side-btn { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--t2);
+  padding:7px 8px; border-radius:8px; margin:0 4px; }
+.side-btn:hover { background:var(--bg2); color:var(--t1); }
+.side-foot { margin-top:auto; font-size:11px; color:var(--t4); padding:10px 8px 2px;
+  border-top:1px solid var(--line); }
+
+/* 主区 */
+.main { flex:1; display:flex; flex-direction:column; min-width:0; }
+.scroll { flex:1; overflow:hidden; }
+.transcript { max-width:760px; margin:0 auto; padding:22px 24px 8px; }
+
+.runline { display:flex; align-items:center; gap:12px; margin:8px 0 16px; color:var(--t4);
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; }
+.runline::before,.runline::after { content:""; flex:1; height:1px; background:var(--line); }
+
+.msg-user { display:flex; justify-content:flex-end; margin:18px 0; }
+.bubble { max-width:78%; background:var(--bg2); border:1px solid var(--line-2);
+  border-radius:14px 14px 5px 14px; padding:9px 14px; font-size:13.5px; line-height:1.65;
+  color:var(--t1); }
+.bubble .al { display:block; font-family:var(--mono); font-size:11px; color:var(--warn); margin-bottom:4px; }
+
+.msg-ai { display:flex; gap:12px; margin:18px 0; }
+.ava { flex:none; width:24px; height:24px; border-radius:7px; background:var(--grad);
+  display:grid; place-items:center; font-size:11.5px; font-weight:800; color:#07090f; }
+.body { flex:1; min-width:0; padding-top:1px; }
+.ai-text { font-size:14px; line-height:1.75; color:var(--t1); }
+.ai-text code { font-family:var(--mono); font-size:.86em; background:var(--bg2);
+  border:1px solid var(--line); border-radius:5px; padding:1.5px 5px; color:#d3f4fb; }
+
+.tool { margin:3px 0; border-radius:11px; border:1px solid var(--line); background:var(--bg1); overflow:hidden; }
+.tool-row { display:flex; align-items:center; gap:9px; width:100%; padding:7px 12px; font-size:12.5px; }
+.t-dot { flex:none; width:6px; height:6px; border-radius:50%; background:var(--t4); }
+.tool.ok .t-dot { background:var(--ok); box-shadow:0 0 5px rgba(63,221,151,.4); }
+.tool.run .t-dot { background:var(--a1); box-shadow:0 0 7px rgba(45,212,238,.65); }
+.t-name { font-family:var(--mono); font-size:12px; font-weight:600; }
+.t-params { flex:1; min-width:0; font-family:var(--mono); font-size:11.5px; color:var(--t3);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.t-meta { display:flex; align-items:center; gap:10px; }
+.t-ms { font-family:var(--mono); font-size:11px; color:var(--t4); font-variant-numeric:tabular-nums; }
+.t-out { border-top:1px solid var(--line); padding:9px 14px 11px; font-family:var(--mono);
+  font-size:11.8px; line-height:1.6; color:var(--t2); white-space:pre-wrap; }
+.t-out .sec { font-size:10px; font-weight:650; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--t4); margin-bottom:3px; }
+
+/* 审批卡 */
+.perm { border:1px solid rgba(245,192,78,.4);
+  background:linear-gradient(180deg,rgba(245,192,78,.055),rgba(245,192,78,.015)),var(--bg1);
+  border-radius:14px; margin:14px 0; padding:14px 16px; }
+.perm-head { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;
+  color:var(--warn); margin-bottom:10px; }
+.perm-tool { font-family:var(--mono); font-size:12px; font-weight:600; color:var(--t1);
+  background:var(--bg2); border:1px solid var(--line-2); padding:1px 8px; border-radius:6px; }
+.perm-cmd { font-family:var(--mono); font-size:12px; color:var(--t2); background:var(--bg0);
+  border:1px solid var(--line); border-radius:8px; padding:9px 12px; margin-bottom:10px; }
+.impact { display:flex; gap:8px; font-size:12px; color:var(--t3); line-height:1.6;
+  background:rgba(245,192,78,.04); border:1px dashed rgba(245,192,78,.25); border-radius:8px;
+  padding:8px 11px; margin-bottom:12px; }
+.impact b { color:var(--t2); font-weight:600; }
+.perm-actions { display:flex; gap:7px; }
+.perm-btn { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:550;
+  color:var(--t2); background:var(--bg2); border:1px solid var(--line-2); border-radius:8px;
+  padding:6.5px 12px; }
+.perm-btn kbd { font-family:var(--mono); font-size:10.5px; color:var(--t3);
+  background:var(--bg0); border:1px solid var(--line-2); border-bottom-width:2px;
+  border-radius:5px; padding:1px 5px; }
+
+.report-banner { display:flex; align-items:center; gap:10px; border:1px solid rgba(63,221,151,.35);
+  background:rgba(63,221,151,.05); border-radius:12px; padding:10px 14px; margin:16px 0; }
+.report-banner .ic { color:var(--ok); display:grid; place-items:center; }
+.report-banner .tx { font-size:13px; color:var(--t2); }
+.report-banner .tx b { color:var(--t1); }
+.report-banner a { margin-left:auto; font-size:12.5px; color:var(--a1); text-decoration:none;
+  border-bottom:1px solid rgba(45,212,238,.35); padding-bottom:1px; }
+
+/* composer */
+.composer-wrap { flex:none; padding:8px 24px 14px; }
+.composer { max-width:760px; margin:0 auto; display:flex; align-items:center; gap:8px;
+  background:var(--bg1); border:1px solid var(--line-2); border-radius:14px; padding:8px 8px 8px 16px; }
+.composer .ph { flex:1; color:var(--t4); font-size:14px; }
+.send { width:34px; height:34px; border-radius:10px; background:var(--grad); color:#08131a;
+  display:grid; place-items:center; }
+.hint { max-width:760px; margin:8px auto 0; text-align:center; color:var(--t4); font-size:11px; }
+.hint kbd { font-family:var(--mono); font-size:10px; border:1px solid var(--line-2);
+  border-bottom-width:2px; border-radius:4px; padding:0 4px; background:var(--bg2); }
+
+/* ══ 画板 2:审批卡双态 ══ */
+.duo { display:flex; gap:20px; padding:28px; background:radial-gradient(900px 400px at 70% -10%,rgba(138,140,249,.06),transparent 60%),var(--bg0); }
+.duo .col { flex:1; }
+.duo .cap { font-size:11px; color:var(--t4); font-family:var(--mono); margin-bottom:10px; }
+.perm.done-allow { border-color:rgba(63,221,151,.35); }
+.perm.done-allow .perm-head { color:var(--ok); }
+.verdict { font-size:12.5px; font-weight:550; color:var(--ok); margin-top:2px; }
+.verdict small { display:block; font-weight:400; color:var(--t4); margin-top:3px; }
+
+/* ══ 画板 3:报告 ══ */
+.report-sheet { margin:24px; border:1px solid var(--line-2); border-radius:14px;
+  background:var(--bg1); overflow:hidden; display:flex; flex-direction:column; }
+.report-bar { display:flex; align-items:center; gap:10px; padding:11px 18px;
+  border-bottom:1px solid var(--line); background:#0b0b10; font-size:12.5px; color:var(--t3); }
+.report-bar b { color:var(--t1); font-weight:600; font-size:13px; }
+.report-bar .dl { margin-left:auto; color:var(--a1); }
+.report-body { padding:22px 26px; overflow:hidden; }
+.report-body h2 { font-size:17px; letter-spacing:-0.01em; margin-bottom:14px; }
+.kv-cards { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; }
+.kvc { border:1px solid var(--line); border-radius:10px; padding:10px 13px; background:var(--bg2); }
+.kvc .k { font-size:10.5px; color:var(--t4); letter-spacing:.06em; margin-bottom:4px; }
+.kvc .v { font-size:13px; color:var(--t1); line-height:1.5; }
+.kvc .v em { font-style:normal; color:var(--ok); }
+.rpt-h { font-size:12px; font-weight:650; letter-spacing:.08em; color:var(--t4);
+  text-transform:uppercase; margin:18px 0 8px; }
+.tl { position:relative; padding-left:18px; border-left:1px solid var(--line-3); margin-left:4px; }
+.tl .ev { position:relative; margin: 0 0 10px; font-size:12.5px; color:var(--t2); }
+.tl .ev::before { content:""; position:absolute; left:-22.5px; top:5px; width:8px; height:8px;
+  border-radius:50%; background:var(--bg4); border:2px solid var(--t4); }
+.tl .ev.hot::before { border-color:var(--warn); background:rgba(245,192,78,.2); }
+.tl .ev.good::before { border-color:var(--ok); }
+.tl .ev .t { font-family:var(--mono); font-size:11px; color:var(--t4); margin-right:8px; }
+.ev .tag { font-family:var(--mono); font-size:10.5px; border:1px solid var(--line-2);
+  border-radius:5px; padding:0 5px; margin-right:6px; color:var(--t3); }
+.evidence { display:flex; flex-direction:column; gap:8px; }
+.ev-card { border:1px solid var(--line); border-left:2px solid var(--a2); border-radius:8px;
+  background:var(--bg0); padding:8px 12px; font-family:var(--mono); font-size:11.5px;
+  color:var(--t2); line-height:1.6; }
+.ev-card .src { color:var(--t4); font-size:10.5px; margin-bottom:3px; }
+.ev-card mark { background:rgba(245,192,78,.18); color:#ffe9b0; padding:0 3px; border-radius:3px; }
+
+/* ══ 画板 4:空状态 ══ */
+.empty { height:560px; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(1000px 500px at 50% -20%,rgba(138,140,249,.08),transparent 60%),var(--bg0); }
+.empty .inner { text-align:center; }
+.empty .mark { width:56px; height:56px; border-radius:15px; background:var(--grad);
+  display:grid; place-items:center; margin:0 auto 18px; font-size:22px; font-weight:800; color:#07090f;
+  box-shadow:0 10px 36px rgba(113,113,250,.25); }
+.empty h1 { font-size:23px; font-weight:700; letter-spacing:-.02em; }
+.empty p { font-size:13.5px; color:var(--t3); margin:8px 0 26px; }
+.empty .chips { display:flex; gap:9px; justify-content:center; }
+.empty .cbtn { display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:550;
+  color:var(--t2); background:var(--bg1); border:1px solid var(--line-2); padding:8px 15px;
+  border-radius:99px; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="doc-head">
+    <h1>OnCallCopilot · 高保真原型</h1>
+    <p>v0.1 · Phase 0 · 与 Web Console 设计系统同源(暗色/细边框/渐变主色),数据为剧本 #12
+    <code style="font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#2dd4ee;">payments-error-spike-config</code>
+    的完整模拟数据。本原型即 Phase 4 前端的视觉规格。</p>
+  </div>
+
+  <!-- ═══════════ 画板 1:主工作台 ═══════════ -->
+  <div class="artboard">
+    <div class="ab-label"><span class="no">ARTBOARD 01</span><span class="name">值班工作台 · 诊断进行中</span><span class="meta">1280 × 820 · P0</span></div>
+    <div class="ab-frame"><div class="app">
+
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark">K</div><b>OnCallCopilot</b><span>值班副驾</span>
+        </div>
+        <div class="top-status">
+          <div class="meter"><div class="bar"><i></i></div><span class="val">ctx 34%</span></div>
+          <span class="chip ok">cache 87%</span>
+          <span class="conn-wrap"><span class="conn"></span>ready</span>
+        </div>
+      </header>
+
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="drill-row">
+            <button class="btn-drill">⚡ 故障演练 ▾</button>
+            <button class="btn-drill ghost">↺</button>
+          </div>
+
+          <div class="side-sec">
+            <div class="sec-label">告警队列 · 1 活跃</div>
+            <div class="alert-card firing">
+              <div class="row1"><span class="dot"></span>FIRING<span class="stat">10:30</span></div>
+              <div class="svc">payments · P1</div>
+              <div class="sum">错误率 31% 飙升(基线 0.4%),影响下单支付链路</div>
+            </div>
+            <div class="alert-card resolved">
+              <div class="row1"><span class="dot"></span>RESOLVED<span class="stat">09:12</span></div>
+              <div class="svc">orders · P2</div>
+              <div class="sum">消费 lag 超阈值(已扩容)</div>
+            </div>
+          </div>
+
+          <div class="side-sec">
+            <div class="sec-label">服务健康</div>
+            <div class="svc-row"><span class="sdot"></span><span class="nm">gateway</span><span class="m">2 副本 · err 0.2%</span></div>
+            <div class="svc-row"><span class="sdot"></span><span class="nm">orders</span><span class="m">2 副本 · err 0.3%</span></div>
+            <div class="svc-row warn"><span class="sdot"></span><span class="nm">payments</span><span class="m">3 副本 · err <b>31%</b></span></div>
+          </div>
+
+          <div class="side-sec">
+            <div class="sec-label">操作</div>
+            <button class="side-btn">📖 runbook 知识库</button>
+            <button class="side-btn">🕐 审计回放</button>
+          </div>
+
+          <div class="side-foot">模拟环境 · 3 服务 / 3 外部依赖<br>kyle-core 0.0.1 · uptime 4h</div>
+        </aside>
+
+        <main class="main">
+          <div class="scroll"><div class="transcript">
+
+            <div class="runline">run 20261027-103002-f4 · 诊断 alert-004</div>
+
+            <div class="msg-user"><div class="bubble"><span class="al">⚡ alert-004 · payments · P1</span>
+              处理以下告警:payments 错误率 31% 飙升(基线 0.4%)。查清根因,给出处置建议;需要变更操作时申请审批。</div></div>
+
+            <div class="msg-ai"><div class="ava">K</div><div class="body">
+              <div class="ai-text">收到。我先看服务状态与错误日志特征,再对照指标趋势定位突变点。</div>
+            </div></div>
+
+            <div class="tool ok">
+              <div class="tool-row"><span class="t-dot"></span><span class="t-name">service_status</span>
+                <span class="t-params">service=payments</span>
+                <span class="t-meta"><span class="t-ms">11ms</span></span></div>
+              <div class="t-out"><div class="sec">输出</div>payments: degraded · 3 副本 · err_rate 0.31 · p99 842ms
+依赖: payments-db(可达) · risk-svc(可达)</div>
+            </div>
+
+            <div class="tool ok">
+              <div class="tool-row"><span class="t-dot"></span><span class="t-name">logs_query</span>
+                <span class="t-params">service=payments level=ERROR tail=50</span>
+                <span class="t-meta"><span class="t-ms">38ms</span></span></div>
+              <div class="t-out"><div class="sec">输出(命中 3 行)</div>10:25:41 ERROR config: unknown key "retr_interval" — using default
+10:25:41 ERROR config: unknown key "retr_interval" — using default
+10:26:02 ERROR payment failed: downstream timeout (pool exhausted)</div>
+            </div>
+
+            <div class="tool ok">
+              <div class="tool-row"><span class="t-dot"></span><span class="t-name">metrics_query</span>
+                <span class="t-params">service=payments metric=error_rate window_min=15</span>
+                <span class="t-meta"><span class="t-ms">22ms</span></span></div>
+              <div class="t-out"><div class="sec">输出</div>error_rate 15min: mean 0.4% → 当前 31%
+突变点: 10:25(与最近发布窗口一致)</div>
+            </div>
+
+            <div class="msg-ai"><div class="ava">K</div><div class="body">
+              <div class="ai-text">根因已定位:<code>10:25</code> 发布窗口引入坏配置
+              <code>retr_interval</code>(日志特征 + 指标突变点吻合)。依据 runbook
+              《错误率飙升处置》§2,回滚即重启生效。申请执行变更:</div>
+            </div></div>
+
+            <div class="perm done-allow">
+              <div class="perm-head">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                已放行 <span class="perm-tool">service_restart</span>
+              </div>
+              <div class="perm-cmd">service: payments</div>
+              <div class="verdict">✓ allow_once · 2026-10-27 10:30:31<small>影响面已确认:gateway 健康检查瞬时失败约 30s,可接受</small></div>
+            </div>
+
+            <div class="tool ok">
+              <div class="tool-row"><span class="t-dot"></span><span class="t-name">service_restart</span>
+                <span class="t-params">service=payments</span>
+                <span class="t-meta"><span class="t-ms">45ms</span></span></div>
+              <div class="t-out"><div class="sec">输出</div>滚动重启完成(3/3 副本)· 故障标记清除 · err% 回落 0.4%</div>
+            </div>
+
+            <div class="tool ok">
+              <div class="tool-row"><span class="t-dot"></span><span class="t-name">submit_diagnosis</span>
+                <span class="t-params">root_cause=坏配置 retr_interval · confidence=0.9</span>
+                <span class="t-meta"><span class="t-ms">8ms</span></span></div>
+            </div>
+
+            <div class="report-banner">
+              <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg></span>
+              <span class="tx">处置完成 · <b>alert-004 已解决</b> · err% 31% → 0.4% · 用时 33s</span>
+              <a>查看处置报告 →</a>
+            </div>
+
+          </div></div>
+
+          <div class="composer-wrap">
+            <div class="composer">
+              <span class="ph">给 OnCallCopilot 一个目标,或点击左侧告警发起诊断…</span>
+              <button class="send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+            <div class="hint"><kbd>Enter</kbd> 发送 · <kbd>⇧ Enter</kbd> 换行 · 审批时按 <kbd>y</kbd><kbd>a</kbd><kbd>n</kbd><kbd>d</kbd></div>
+          </div>
+        </main>
+      </div>
+
+    </div></div>
+  </div>
+
+  <!-- ═══════════ 画板 2:审批双态 ═══════════ -->
+  <div class="artboard">
+    <div class="ab-label"><span class="no">ARTBOARD 02</span><span class="name">变更审批卡 · 双态</span><span class="meta">1280 × 420 · P0</span></div>
+    <div class="ab-frame"><div class="duo">
+      <div class="col">
+        <div class="cap">A · 待审批(含影响面推导)</div>
+        <div class="perm">
+          <div class="perm-head">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            工具执行需要审批 <span class="perm-tool">scale_up</span>
+          </div>
+          <div class="perm-cmd">service: gateway · delta: 2</div>
+          <div class="impact">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5c04e" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            <div><b>影响面</b>:副本 2 → 4,费用 +100%/服务;上限 6 内。缓解类动作,DOS 流量场景。</div>
+          </div>
+          <div class="perm-actions">
+            <button class="perm-btn"><kbd>y</kbd>允许一次</button>
+            <button class="perm-btn"><kbd>a</kbd>始终允许</button>
+            <button class="perm-btn"><kbd>n</kbd>拒绝</button>
+            <button class="perm-btn"><kbd>d</kbd>始终拒绝</button>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="cap">B · 已放行(收起按钮组,留结论与审计信息)</div>
+        <div class="perm done-allow">
+          <div class="perm-head">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            已放行 <span class="perm-tool">service_restart</span>
+          </div>
+          <div class="perm-cmd">service: payments</div>
+          <div class="verdict">✓ allow_once · 2026-10-27 10:30:31
+            <small>审计:trace run 20261027-103002-f4 · 决策事件 permission.granted #87</small>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ═══════════ 画板 3:处置报告 ═══════════ -->
+  <div class="artboard">
+    <div class="ab-label"><span class="no">ARTBOARD 03</span><span class="name">处置报告 · 全屏浮层</span><span class="meta">1280 × 820 · P0</span></div>
+    <div class="ab-frame"><div style="height:820px">
+      <div class="report-sheet">
+        <div class="report-bar">
+          <span>← 返回对话</span><b>处置报告 · alert-004</b>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--t4)">run 20261027-103002-f4</span>
+          <span class="dl">导出 .md</span>
+        </div>
+        <div class="report-body">
+          <h2>payments 错误率飙升(alert-004)</h2>
+          <div class="kv-cards">
+            <div class="kvc"><div class="k">结论</div><div class="v">发布引入坏配置 <em>retr_interval</em> · 置信度 0.9</div></div>
+            <div class="kvc"><div class="k">处置</div><div class="v">service_restart payments(<em>allow_once 审批</em>)</div></div>
+            <div class="kvc"><div class="k">结果</div><div class="v">err% 31% → <em>0.4%</em> · 告警已解决 · 用时 33s</div></div>
+          </div>
+          <div class="rpt-h">时间线</div>
+          <div class="tl">
+            <div class="ev hot"><span class="t">10:30:02</span><span class="tag">ALERT</span>payments err 31% 飙升(firing)</div>
+            <div class="ev"><span class="t">10:30:11</span><span class="tag">TOOL</span>logs_query → 命中 bad config key <mark>retr_interval</mark>(3 行)</div>
+            <div class="ev"><span class="t">10:30:19</span><span class="tag">TOOL</span>metrics_query → 突变点 10:25,与发布窗口吻合</div>
+            <div class="ev"><span class="t">10:30:24</span><span class="tag">RAG</span>runbook《错误率飙升处置》§2 命中</div>
+            <div class="ev"><span class="t">10:30:31</span><span class="tag">PERM</span>service_restart → <b style="color:var(--ok)">allow_once</b></div>
+            <div class="ev good"><span class="t">10:30:32</span><span class="tag">EXEC</span>滚动重启完成,恢复段追加</div>
+            <div class="ev good"><span class="t">10:30:35</span><span class="tag">DONE</span>submit_diagnosis · alert-004 resolved</div>
+          </div>
+          <div class="rpt-h">证据链</div>
+          <div class="evidence">
+            <div class="ev-card"><div class="src">logs/payments.log · L8812-8814</div>10:25:41 ERROR config: unknown key <mark>"retr_interval"</mark> — using default</div>
+            <div class="ev-card"><div class="src">metrics/payments.csv · error_rate</div>0.004 → <mark>0.310</mark> @ 10:25(15min 窗口,突变点唯一)</div>
+            <div class="ev-card"><div class="src">runbooks/错误率飙升处置.md · §2</div>配置类错误:回滚即重启生效;无需数据修复</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ═══════════ 画板 4:空状态 ═══════════ -->
+  <div class="artboard">
+    <div class="ab-label"><span class="no">ARTBOARD 04</span><span class="name">空状态 · 首次进入</span><span class="meta">1280 × 560 · P1</span></div>
+    <div class="ab-frame"><div class="empty">
+      <div class="inner">
+        <div class="mark">K</div>
+        <h1>OnCallCopilot</h1>
+        <p>值班副驾 —— 告警进来自动查,危险操作你审批,处置报告自动出</p>
+        <div class="chips">
+          <button class="cbtn">⚡ 注入一个演练故障</button>
+          <button class="cbtn">📖 查看 runbook 知识库</button>
+          <button class="cbtn">🕐 回放上次处置</button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+</body>
+</html>
