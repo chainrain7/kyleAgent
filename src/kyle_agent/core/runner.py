@@ -138,6 +138,15 @@ class AgentRunner:
                 )
             if _ok("agent_result"):
                 registry.register(AgentResultTool(self._task_registry))
+        # OnCallCopilot 业务层:[oncall] enabled 时注册领域工具
+        if self._config.oncall.enabled:
+            from kyle_agent.oncall.tools import build_oncall_tools
+
+            env_dir = Path(self._config.oncall.env_dir).expanduser()
+            for t in build_oncall_tools(env_dir):
+                if _ok(t.name):
+                    registry.register(t)
+
         if self._mcp_manager is not None:
             for mcp_tool in self._mcp_manager.get_tools():
                 if _ok(mcp_tool.name):

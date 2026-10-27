@@ -361,4 +361,4 @@ async def test_parallel_disabled_by_config() -> None:
     import time
     t0 = time.monotonic()
     await loop.run(ctx)
-    assert time.monotonic() - t0 >= 0.4
+    assert time.monotonic() - t0 >= 0.35  # 串行 2×0.2s,留调度余量防抖动

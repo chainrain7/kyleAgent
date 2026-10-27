@@ -77,6 +77,12 @@ class SimEnv:
 
     # ── 生命周期 ──────────────────────────────────────────────
 
+    # 读取包内 baseline 的正常态(恢复动作的"健康值"来源)
+    @staticmethod
+    def baseline_state() -> dict[str, dict[str, Any]]:
+        data = json.loads((_BASELINE_DIR / "state.json").read_text(encoding="utf-8"))
+        return cast("dict[str, dict[str, Any]]", data)
+
     # 从包内 baseline 模板重建环境并物化时间戳,返回绑定实例
     @classmethod
     def reset(cls, env_dir: Path) -> SimEnv:
