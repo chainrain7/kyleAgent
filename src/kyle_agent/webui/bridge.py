@@ -103,6 +103,90 @@ async def ws_relay(ws: WebSocket) -> None:
         pass
 
 
+# ── OnCallCopilot 演练控制 API(操作对象是文件系统模拟环境,不经 daemon) ──
+
+from fastapi import HTTPException
+from pydantic import BaseModel
+
+
+# 注入请求体
+class InjectRequest(BaseModel):
+    fault_id: str
+
+
+# 解析 oncall env 目录(KYLE_ONCALL_ENV > 默认)
+def _oncall_env_dir() -> Path:
+    env = os.environ.get("KYLE_ONCALL_ENV")
+    return Path(env).expanduser() if env else Path("~/.kyle/oncall/env").expanduser()
+
+
+# 值班工作台状态:服务健康 + 告警队列 + 拓扑 + 报告清单 + 剧本列表
+@app.get("/api/state")
+async def api_state() -> dict[str, object]:
+    from kyle_agent.oncall.faults import SCENARIOS
+    from kyle_agent.oncall.sim import SimEnv
+
+    env_dir = _oncall_env_dir()
+    if not (env_dir / "state.json").exists():
+        return {"available": False}
+    env = SimEnv(env_dir)
+    reports = sorted((env_dir / "reports").glob("*.md")) if (env_dir / "reports").exists() else []
+    return {
+        "available": True,
+        "services": env.read_state(),
+        "alerts": env.read_alerts(),
+        "topology": {
+            name: info.get("depends_on", [])
+            for name, info in env.topology().services.items()
+        },
+        "externals": env.topology().externals,
+        "reports": [r.name for r in reports[-10:]],
+        "scenarios": [
+            {"id": s.id, "severity": s.severity, "summary": s.alert_summary,
+             "service": s.alert_service, "recoverable": s.auto_recoverable}
+            for s in SCENARIOS
+        ],
+    }
+
+
+# 注入剧本(先重置保可复现),返回新告警 id
+@app.post("/api/inject")
+async def api_inject(req: InjectRequest) -> dict[str, object]:
+    from kyle_agent.oncall.faults import BY_ID
+    from kyle_agent.oncall.sim import SimEnv
+
+    scenario = BY_ID.get(req.fault_id)
+    if scenario is None:
+        raise HTTPException(status_code=404, detail=f"unknown fault_id: {req.fault_id}")
+    env = SimEnv.reset(_oncall_env_dir())
+    scenario.inject(env)
+    alert = env.read_alerts()[-1]
+    return {"injected": scenario.id, "alert_id": alert["alert_id"],
+            "summary": scenario.alert_summary, "service": scenario.alert_service,
+            "severity": scenario.severity}
+
+
+# 重置环境到基线
+@app.post("/api/reset")
+async def api_reset() -> dict[str, object]:
+    from kyle_agent.oncall.sim import SimEnv
+
+    SimEnv.reset(_oncall_env_dir())
+    return {"reset": True}
+
+
+# 读取处置报告原文
+@app.get("/api/report/{name}")
+async def api_report(name: str) -> dict[str, object]:
+    safe = Path(name).name  # 防路径穿越
+    path = _oncall_env_dir() / "reports" / f"{safe}.md"
+    if not safe.endswith(".md"):
+        path = _oncall_env_dir() / "reports" / f"{safe}"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="report not found")
+    return {"name": path.name, "content": path.read_text(encoding="utf-8")}
+
+
 # CLI 入口:uvicorn 起服务
 def main() -> None:
     parser = argparse.ArgumentParser(prog="kyle-webui", description="kyleAgent Web UI")
