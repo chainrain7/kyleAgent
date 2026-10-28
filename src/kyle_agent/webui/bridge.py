@@ -179,9 +179,9 @@ async def api_reset() -> dict[str, object]:
 @app.get("/api/report/{name}")
 async def api_report(name: str) -> dict[str, object]:
     safe = Path(name).name  # 防路径穿越
-    path = _oncall_env_dir() / "reports" / f"{safe}.md"
     if not safe.endswith(".md"):
-        path = _oncall_env_dir() / "reports" / f"{safe}"
+        safe = f"{safe}.md"
+    path = _oncall_env_dir() / "reports" / safe
     if not path.exists():
         raise HTTPException(status_code=404, detail="report not found")
     return {"name": path.name, "content": path.read_text(encoding="utf-8")}
