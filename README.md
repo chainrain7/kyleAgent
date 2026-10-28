@@ -419,7 +419,9 @@ kyleCode/
   **默认 ASK 审批** / submit_diagnosis 结构化结论)、**精确恢复语义**(动作-故障类型
   匹配、传导自动解除、告警自动 resolved)、9 篇 runbook 知识库;
   配置 `[oncall] enabled = true` 开启
-- ⏳ Phase 3 业务评测集(20 剧本三重断言 + cassette)
+- ✅ **Phase 3** 业务评测集:20 剧本 × 三重断言(定位命中 / 变更动作集精确一致 /
+  终态恢复或零变更标记保留);**真实 LLM 首跑 80% → 迭代后 20/20**,离线回放
+  CI 门禁(`--suite oncall`,2.5s 全绿);真实审批流专项测试(放行恢复/拒绝保留)
 - ⏳ Phase 4 值班工作台前端 · Phase 5 量化报告与简历交付
 
 设计文档:[docs/product/PRD.md](docs/product/PRD.md) ·

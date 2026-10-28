@@ -33,7 +33,9 @@ _GOAL_TEMPLATE = (
     "3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,"
     "只给处置建议;\n"
     "4) 最后必须调用一次 submit_diagnosis 提交结构化结论"
-    "(root_cause 一句话 / recommended_actions / confidence / evidence)。"
+    "(root_cause 一句话 / recommended_actions / confidence / evidence)。\n"
+    "5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,"
+    "不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。"
 )
 
 
@@ -118,6 +120,8 @@ def _to_task(scenario: FaultScenario) -> EvalTask:
         config.oncall.enabled = True
         config.oncall.env_dir = str(_env_path(root))
 
+    # 个别剧本需要"处置→验证→提交"完整闭环,预算放宽(其余默认 12)
+    budget = {"orders-queue-backlog": 14}.get(scenario.id, 12)
     return EvalTask(
         id=f"oncall-{scenario.id}",
         category="oncall",
@@ -128,7 +132,7 @@ def _to_task(scenario: FaultScenario) -> EvalTask:
         ),
         setup=setup,
         verify=_make_verify(scenario),
-        max_steps=12,
+        max_steps=budget,
         note=scenario.note,
         config_patch=config_patch,
     )

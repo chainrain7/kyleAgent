@@ -1,0 +1,1904 @@
+{
+ "generated_at": "2026-10-28T15:17:44.303152+00:00",
+ "summary": {
+  "total": 20,
+  "passed": 20,
+  "pass_rate": 1.0,
+  "llm_calls": 178,
+  "input_tokens": 64310,
+  "output_tokens": 63498
+ },
+ "results": [
+  {
+   "task_id": "oncall-gateway-mem-leak",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | gateway | gateway 内存 92% 持续上涨,逼近容器上限\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 8,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 62,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 8,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 8,
+       "strategies": {
+        "static": 8
+       }
+      }
+     },
+     "input_tokens": 2395,
+     "output_tokens": 2020,
+     "cache_read_input_tokens": 32128,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 36543,
+     "context_pct_max": 0.003785,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 14,
+     "finished": 14,
+     "failed": 0,
+     "avg_ms": 1.1,
+     "max_ms": 16,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 4,
+       "finished": 4,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 16.0,
+       "max_ms": 16
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-crashloop-badconfig",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | orders | orders CrashLoopBackOff,5 分钟内重启 5 次\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 9,
+    "step_started": 9,
+    "step_finished": 9,
+    "event_count": 70,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 9,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 9,
+       "strategies": {
+        "static": 9
+       }
+      }
+     },
+     "input_tokens": 3151,
+     "output_tokens": 2898,
+     "cache_read_input_tokens": 41472,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 47521,
+     "context_pct_max": 0.00498,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 16,
+     "finished": 14,
+     "failed": 2,
+     "avg_ms": 1.0,
+     "max_ms": 16,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 5,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 2,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 5.3,
+       "max_ms": 16
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-connpool-exhaust",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | payments | payments 大量请求超时,连接池获取失败\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 12,
+    "step_started": 12,
+    "step_finished": 12,
+    "event_count": 114,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 12,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 12,
+       "strategies": {
+        "static": 12
+       }
+      }
+     },
+     "input_tokens": 4320,
+     "output_tokens": 6001,
+     "cache_read_input_tokens": 80896,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 91217,
+     "context_pct_max": 0.004505,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 32,
+     "finished": 26,
+     "failed": 6,
+     "avg_ms": 0.5,
+     "max_ms": 15,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 11,
+       "finished": 9,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 10,
+       "finished": 8,
+       "failed": 2,
+       "avg_ms": 1.5,
+       "max_ms": 15
+      },
+      "runbook_search": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 5,
+       "finished": 3,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-disk-full",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | orders | orders 磁盘使用 96%,写入受限\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 11,
+    "step_started": 11,
+    "step_finished": 11,
+    "event_count": 88,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 11,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 11,
+       "strategies": {
+        "static": 11
+       }
+      }
+     },
+     "input_tokens": 3756,
+     "output_tokens": 3812,
+     "cache_read_input_tokens": 54144,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 61712,
+     "context_pct_max": 0.00373,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 21,
+     "finished": 18,
+     "failed": 3,
+     "avg_ms": 0.8,
+     "max_ms": 16,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "bash": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 16.0,
+       "max_ms": 16
+      },
+      "log_cleanup": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 8,
+       "finished": 7,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 4,
+       "finished": 3,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 2,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-gateway-cpu-saturation",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | gateway | gateway CPU 97%,p99 延迟翻 4 倍\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 78,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 10,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 10,
+       "strategies": {
+        "static": 10
+       }
+      }
+     },
+     "input_tokens": 3294,
+     "output_tokens": 2895,
+     "cache_read_input_tokens": 47616,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 53805,
+     "context_pct_max": 0.004705,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 18,
+     "finished": 18,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "logs_query": {
+       "calls": 6,
+       "finished": 6,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 6,
+       "finished": 6,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "scale_up": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-queue-backlog",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | orders | orders 消费积压 12 万条且持续增长\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 72,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 10,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 10,
+       "strategies": {
+        "static": 10
+       }
+      }
+     },
+     "input_tokens": 3301,
+     "output_tokens": 3485,
+     "cache_read_input_tokens": 49152,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 55938,
+     "context_pct_max": 0.003735,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 15,
+     "finished": 14,
+     "failed": 1,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 5,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "scale_up": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-gateway-dep-orders-down",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | gateway | gateway 5xx 飙升至 18%,下游不可达\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 8,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 70,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 8,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 8,
+       "strategies": {
+        "static": 8
+       }
+      }
+     },
+     "input_tokens": 3230,
+     "output_tokens": 2862,
+     "cache_read_input_tokens": 38400,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 44492,
+     "context_pct_max": 0.00599,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 18,
+     "finished": 18,
+     "failed": 0,
+     "avg_ms": 0.9,
+     "max_ms": 16,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 7,
+       "finished": 7,
+       "failed": 0,
+       "avg_ms": 2.3,
+       "max_ms": 16
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-gateway-dep-payments-down",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | gateway | gateway 下游调用大面积超时,支付链路受阻\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 8,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 64,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 8,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 8,
+       "strategies": {
+        "static": 8
+       }
+      }
+     },
+     "input_tokens": 3248,
+     "output_tokens": 2858,
+     "cache_read_input_tokens": 35712,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 41818,
+     "context_pct_max": 0.004505,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 15,
+     "finished": 15,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 4,
+       "finished": 4,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 5,
+       "finished": 5,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-dep-db-slow",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | orders | orders 全量请求变慢,p99 达 890ms\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 6,
+    "step_started": 6,
+    "step_finished": 6,
+    "event_count": 48,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 6,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 6,
+       "strategies": {
+        "static": 6
+       }
+      }
+     },
+     "input_tokens": 2195,
+     "output_tokens": 2248,
+     "cache_read_input_tokens": 21888,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 26331,
+     "context_pct_max": 0.003355,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 11,
+     "finished": 9,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 5,
+       "finished": 4,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 2,
+       "finished": 1,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-dep-risk-timeout",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | payments | payments 风控调用超时率 40%,支付成功率下降\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 6,
+    "step_started": 6,
+    "step_finished": 6,
+    "event_count": 48,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 6,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 6,
+       "strategies": {
+        "static": 6
+       }
+      }
+     },
+     "input_tokens": 2011,
+     "output_tokens": 1905,
+     "cache_read_input_tokens": 21504,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 25420,
+     "context_pct_max": 0.00342,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 11,
+     "finished": 9,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 4,
+       "finished": 3,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 2,
+       "finished": 1,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-cert-expired",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | payments | payments TLS 握手失败,渠道回调中断\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 8,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 78,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 8,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 8,
+       "strategies": {
+        "static": 8
+       }
+      }
+     },
+     "input_tokens": 4348,
+     "output_tokens": 4327,
+     "cache_read_input_tokens": 36096,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 44771,
+     "context_pct_max": 0.00747,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 22,
+     "finished": 20,
+     "failed": 2,
+     "avg_ms": 0.7,
+     "max_ms": 16,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 8,
+       "finished": 8,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 6,
+       "finished": 6,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 5.3,
+       "max_ms": 16
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 1,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-config-typo-errors",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | orders | orders 下单接口 500 尖峰,错误率 8%\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 11,
+    "step_started": 11,
+    "step_finished": 11,
+    "event_count": 84,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 11,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 11,
+       "strategies": {
+        "static": 11
+       }
+      }
+     },
+     "input_tokens": 4233,
+     "output_tokens": 3029,
+     "cache_read_input_tokens": 56192,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 63454,
+     "context_pct_max": 0.005815,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 19,
+     "finished": 17,
+     "failed": 2,
+     "avg_ms": 0.8,
+     "max_ms": 15,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 7,
+       "finished": 6,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 2,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 15.0,
+       "max_ms": 15
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-thread-stuck",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | payments | payments 线程池耗尽,请求大量排队\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 88,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 10,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 10,
+       "strategies": {
+        "static": 10
+       }
+      }
+     },
+     "input_tokens": 4121,
+     "output_tokens": 3430,
+     "cache_read_input_tokens": 51328,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 58879,
+     "context_pct_max": 0.00646,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 23,
+     "finished": 21,
+     "failed": 2,
+     "avg_ms": 1.3,
+     "max_ms": 15,
+     "by_tool": {
+      "logs_query": {
+       "calls": 10,
+       "finished": 8,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 4,
+       "finished": 4,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 4,
+       "finished": 4,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_restart": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 15.0,
+       "max_ms": 15
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 5.0,
+       "max_ms": 15
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-cache-miss-storm",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | orders | orders 数据库 QPS 涨 8 倍,疑似缓存失效\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 74,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 10,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 10,
+       "strategies": {
+        "static": 10
+       }
+      }
+     },
+     "input_tokens": 3281,
+     "output_tokens": 5033,
+     "cache_read_input_tokens": 55296,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 63610,
+     "context_pct_max": 0.00404,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 16,
+     "finished": 14,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 5,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 4,
+       "finished": 3,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "scale_up": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-gateway-dos-traffic",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | gateway | gateway 异常流量,QPS 十倍于基线\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 8,
+    "step_started": 8,
+    "step_finished": 8,
+    "event_count": 56,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 8,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 8,
+       "strategies": {
+        "static": 8
+       }
+      }
+     },
+     "input_tokens": 2604,
+     "output_tokens": 2518,
+     "cache_read_input_tokens": 33023,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 38145,
+     "context_pct_max": 0.003955,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 11,
+     "finished": 11,
+     "failed": 0,
+     "avg_ms": 1.4,
+     "max_ms": 15,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 3,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "scale_up": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 7.5,
+       "max_ms": 15
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-business-rounding",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | payments | payments 少量订单金额计算差错,客诉上报\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 7,
+    "step_started": 7,
+    "step_finished": 7,
+    "event_count": 52,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 7,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 7,
+       "strategies": {
+        "static": 7
+       }
+      }
+     },
+     "input_tokens": 2110,
+     "output_tokens": 1836,
+     "cache_read_input_tokens": 24448,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 28394,
+     "context_pct_max": 0.002265,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 11,
+     "finished": 10,
+     "failed": 1,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 5,
+       "finished": 4,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-orders-db-conn-limit",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | orders | orders 报数据库连接数达上限,写入失败\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 11,
+    "step_started": 11,
+    "step_finished": 11,
+    "event_count": 84,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 11,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 11,
+       "strategies": {
+        "static": 11
+       }
+      }
+     },
+     "input_tokens": 3178,
+     "output_tokens": 3772,
+     "cache_read_input_tokens": 48896,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 55846,
+     "context_pct_max": 0.003295,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 19,
+     "finished": 17,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 5,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 3,
+       "finished": 2,
+       "failed": 1,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 7,
+       "finished": 7,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-payments-error-spike-upstream",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | payments | payments 错误率 6%,上游渠道 5xx 传导\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 6,
+    "step_started": 6,
+    "step_finished": 6,
+    "event_count": 54,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 6,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 6,
+       "strategies": {
+        "static": 6
+       }
+      }
+     },
+     "input_tokens": 2507,
+     "output_tokens": 2892,
+     "cache_read_input_tokens": 24064,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 29463,
+     "context_pct_max": 0.004875,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 14,
+     "finished": 12,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 6,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 3,
+       "finished": 1,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-gateway-log-flood",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P2 | gateway | gateway 磁盘 91%,日志写入速率 20 倍\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 9,
+    "step_started": 9,
+    "step_finished": 9,
+    "event_count": 66,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 9,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 9,
+       "strategies": {
+        "static": 9
+       }
+      }
+     },
+     "input_tokens": 2911,
+     "output_tokens": 2247,
+     "cache_read_input_tokens": 36224,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 41382,
+     "context_pct_max": 0.004115,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 14,
+     "finished": 14,
+     "failed": 0,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "log_cleanup": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 6,
+       "finished": 6,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  },
+  {
+   "task_id": "oncall-blackfriday-surge",
+   "passed": true,
+   "run_status": "success",
+   "error": "",
+   "metrics": {
+    "goal": "值班告警处理任务。\n告警:P1 | gateway | 全链路 p99 抬升,QPS 三倍于基线(大促流量)\n要求:\n1) 使用 service_status / logs_query / metrics_query / runbook_search 排查根因(注意区分表象与根因);\n2) 若属于可自动恢复的故障,调用对应变更工具(service_restart / scale_up / log_cleanup)完成处置;\n3) 若属于外部依赖、业务代码或需人工处理的问题,不要执行任何变更,只给处置建议;\n4) 最后必须调用一次 submit_diagnosis 提交结构化结论(root_cause 一句话 / recommended_actions / confidence / evidence)。\n5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。",
+    "status": "success",
+    "reason": null,
+    "steps": 10,
+    "step_started": 10,
+    "step_finished": 10,
+    "event_count": 80,
+    "skipped_lines": 0,
+    "llm": {
+     "calls": 10,
+     "models": {
+      "claude-sonnet-4-6": {
+       "calls": 10,
+       "strategies": {
+        "static": 10
+       }
+      }
+     },
+     "input_tokens": 4116,
+     "output_tokens": 3430,
+     "cache_read_input_tokens": 52224,
+     "cache_creation_input_tokens": 0,
+     "total_tokens": 59770,
+     "context_pct_max": 0.0053,
+     "cache_hit_rate_last": 0.0
+    },
+    "tools": {
+     "total": 19,
+     "finished": 17,
+     "failed": 2,
+     "avg_ms": 0.0,
+     "max_ms": 0,
+     "by_tool": {
+      "alerts_list": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "logs_query": {
+       "calls": 5,
+       "finished": 5,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "metrics_query": {
+       "calls": 6,
+       "finished": 4,
+       "failed": 2,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "runbook_search": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "scale_up": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "service_status": {
+       "calls": 2,
+       "finished": 2,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      },
+      "submit_diagnosis": {
+       "calls": 1,
+       "finished": 1,
+       "failed": 0,
+       "avg_ms": 0.0,
+       "max_ms": 0
+      }
+     }
+    },
+    "compact": {
+     "count": 0,
+     "original_tokens": 0,
+     "summary_tokens": 0
+    }
+   }
+  }
+ ]
+}

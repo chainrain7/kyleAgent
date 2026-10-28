@@ -1,0 +1,380 @@
+{
+ "task_id": "oncall-orders-db-conn-limit",
+ "version": 1,
+ "recorded_at": "2026-10-28T15:03:36.711684+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by investigating the alert systematically.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_QzvgrebfxJyvcZDAFgnC3091",
+     "name": "alerts_list",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_FSpKt9VjH1gE3VtK6m7a5548",
+     "name": "service_status",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "9ebaa718-1393-4626-99fa-7dbf8d7adfb6"
+    }
+   ],
+   "usage": {
+    "input_tokens": 262,
+    "output_tokens": 43,
+    "cache_read_input_tokens": 2432,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_chOGUsVVwcqHcHCLV9o49245",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 80
+     }
+    },
+    {
+     "id": "call_01_zEaKUncWoAb80iT3lt8N3380",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders is degraded, depends on orders-db which is external (not operable). Let's look at logs and metrics.",
+     "signature": "53fd8d9f-446e-4a40-997c-ed78d6bd6898"
+    }
+   ],
+   "usage": {
+    "input_tokens": 267,
+    "output_tokens": 106,
+    "cache_read_input_tokens": 2688,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_MOpyPzaGyNC02IZVbhJA8215",
+     "name": "runbook_search",
+     "input": {
+      "query": "orders-db too many connections 数据库连接数达上限 写入失败"
+     }
+    },
+    {
+     "id": "call_01_WMpNgIxRA8cq9Uz3SDdd2761",
+     "name": "logs_query",
+     "input": {
+      "service": "orders-db",
+      "tail": 80
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders-db: too many connections (limit 100, in use 100). orders metrics: p99 normal, memory normal, cpu normal, disk normal, qps normal. So orders itself is healthy — the issue is external DB orders-db connection exhaustion.\n\nLet's check runbook and also whether we can query orders-db logs/metrics (externals diagnosed via logs/metrics).",
+     "signature": "5294ec57-05a5-4407-8fd4-4977774eb059"
+    }
+   ],
+   "usage": {
+    "input_tokens": 463,
+    "output_tokens": 179,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_Akm5UvFgIZRqY7nypzOP5552",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders-db"
+     }
+    },
+    {
+     "id": "call_01_Ncdn3rghlzB7HxpB0eFw4331",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "connection",
+      "tail": 100
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders-db isn't queryable via logs. But I can maybe query metrics? Let's try metrics_query on orders-db. Probably also unknown service. Let's check orders logs in more detail and payments for comparison, and maybe check gateway logs. Also check whether orders has connection pool leak evidence — e.g., memory leak or crash. Metrics show normal memory and no queue_lag. Let's dig deeper: check orders logs with keyword \"connection\" and ERROR level, and also check whether there's a connection leak pattern (e.g., released connections). Also check payments status/logs for shared DB capacity.\n\nLet me check metrics_query for orders-db anyway, plus gateway logs.",
+     "signature": "0c23666d-d8fd-4949-9e2d-507119a0e6fc"
+    }
+   ],
+   "usage": {
+    "input_tokens": 228,
+    "output_tokens": 239,
+    "cache_read_input_tokens": 3584,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_0qqtonQfQ4fZywSX2RGt8549",
+     "name": "logs_query",
+     "input": {
+      "level": "ERROR",
+      "service": "gateway",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_ey2IX2u4G7Ba33x7OXXG8781",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders",
+      "metric": "db_qps"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let me verify orders isn't suffering a self-caused connection leak (e.g., restarted/crash). Check other metrics like db_qps (61.2, stable), error_rate step change. The error rate stepped up to 0.22. Everything else normal → external dependency issue.\n\nAlso let me double-check gateway logs for context and confirm no other fault (e.g., disk, capacity). Let me query orders with ERROR level and check service_status for gateway/payments.\n\nActually to be thorough, let me look at whether orders itself might be the cause of exhausting connections (connection pool leak) — that would be an internal issue but the runbook says external dep → zero change. But consider: \"注意区分表象与根因\" — surface is orders DB connection limit; root cause could be orders holding connections. However, evidence: orders memory normal, no restart/crash, qps normal (300), db_qps 61 stable. If orders had a connection leak, we'd expect growing in-use connections and probably memory growth. No such evidence.\n\nLet me also check payments-db/risk-svc for shared capacity — payments seems fine.\n\nLet me check all metrics on orders for db-related and check gateway logs.",
+     "signature": "5ea07fd5-15f3-41a2-b21a-89d7119a7f6c"
+    }
+   ],
+   "usage": {
+    "input_tokens": 161,
+    "output_tokens": 367,
+    "cache_read_input_tokens": 3968,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_iMZigQJEZzF5IUkwlfii1504",
+     "name": "runbook_search",
+     "input": {
+      "query": "连接池泄漏 自身服务导致 数据库连接耗尽 重启修复"
+     }
+    },
+    {
+     "id": "call_01_mk3Mop1MZy0dymsM4TmO3327",
+     "name": "runbook_search",
+     "input": {
+      "query": "error_rate step change 服务降级 排查 容量不足"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "db_qps stable at ~61 — no spike from orders side, so orders isn't suddenly opening tons of new connections. The DB itself is at limit 100 in use.\n\nHmm, but who holds the other ~40 connections? db_qps 61 with 100 in use... Could be other clients. There's no evidence of orders-side leak.\n\nAlso check runbook for \"connection pool leak\" to see if there's a distinguishing signature. Let me search runbook for other candidates: \"连接泄漏\", \"crash\", \"capacity\".",
+     "signature": "10f31665-1dbb-4ac6-bebc-a9e40fe8ab27"
+    }
+   ],
+   "usage": {
+    "input_tokens": 207,
+    "output_tokens": 205,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_Ajm8TehjUQXTgOmDDNx85980",
+     "name": "runbook_search",
+     "input": {
+      "query": "pool-exhaust 连接池耗尽"
+     }
+    },
+    {
+     "id": "call_01_dzc1irTH369R5tCLDioY1714",
+     "name": "runbook_search",
+     "input": {
+      "query": "dep-down 依赖不可用 下游故障"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "There's a 'pool-exhaust' runbook. Let's search it.",
+     "signature": "58804c4c-b118-42a2-ba9e-6f8d421c10a0"
+    }
+   ],
+   "usage": {
+    "input_tokens": 284,
+    "output_tokens": 98,
+    "cache_read_input_tokens": 4736,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_emqIlx9SNhzu4h7EXHfz2440",
+     "name": "runbook_search",
+     "input": {
+      "query": "连接池"
+     }
+    },
+    {
+     "id": "call_01_IxTJUZyNF6GsjDb6m2km5187",
+     "name": "runbook_search",
+     "input": {
+      "query": "too many connections limit"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "The runbook search needs keyword matches. Let me search \"pool\" or \"连接数\" specific terms.",
+     "signature": "2963e74e-6b73-48bb-ba7e-bf24d8047e14"
+    }
+   ],
+   "usage": {
+    "input_tokens": 248,
+    "output_tokens": 94,
+    "cache_read_input_tokens": 4992,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_Le1OSak2lqTKp6CmcsOc5721",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "pool",
+      "tail": 100
+     }
+    },
+    {
+     "id": "call_01_J7KaCkOT7iX9CXDOwUF02176",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "timeout",
+      "tail": 100
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Two candidate runbooks: pool-exhaust (orders connection pool leak → service_restart) vs external-dependency (orders-db too many connections → no change).\n\nKey discrimination from logs: pool-exhaust triggers \"ConnectionPool exhausted\", \"acquire timeout\". Here the log is \"orders-db: too many connections (limit 100, in use 100)\" and \"insert failed: connection refused by orders-db\". This is the DB server rejecting connections — that's the DB side. But the ambiguity: is orders leaking connections that exhausted the DB's 100-connection limit?\n\nEvidence for external dependency:\n- orders service_status degraded but p99 normal (96.9ms, mean 95.76) — pool exhaustion/saturation would normally raise p99 and cause acquire timeouts/timeouts.\n- memory_mb flat (463.7 mean → 469.2 current), no leak.\n- qps flat 302→306, cpu flat 30.\n- db_qps flat 60.5→61.2 — orders isn't opening more connections.\n- Only error_rate stepped to 0.22.\n\nEvidence for pool-exhaust at orders: error rate jumped, but \"connection refused by orders-db\" indicates the DB refused, meaning DB-side limit reached. If orders' own pool were exhausted locally (client-side), the error would be \"acquire timeout / pool exhausted\" not \"limit 100, in use 100\" from the server.\n\nAlso, is there evidence something else consumed the DB connections? orders-db is external, can't inspect. No spike in orders' db_qps, so the connections aren't caused by increased activity from orders.\n\nHmm but wait—a connection leak in orders would show: db_qps normal, memory maybe flat, but in-use connections in DB growing to 100. That's exactly consistent with a leak in orders too. The distinguishing factor: pool-exhaust runbook says p99 elevated and \"acquire timeout\". p99 is not elevated here (96.9 vs mean 95.76 — flat). So no.\n\nThe external-dependency runbook explicitly names this exact log signature \"too many connections\" as pointing to externals. And orders-db is in the externals list = not operable. Zero change principle.\n\nSo conclusion: external dependency orders-db connection limit exhausted (DB side), orders itself healthy. No changes; recommend contact DBA, enable degrade/circuit-breaker, alert DB owner.\n\nBut before finalizing, let me double check for a leaking-connection signature in orders logs more thoroughly — search \"pool\", \"acquire\", \"exhausted\", \"timeout\", \"leak\", \"wait\". Also check if orders has any restart history or connection count metric. Metrics list doesn't include connections. Let's do a couple of log queries.\n\nAlso consider: could there be another runbook scenario like business-bug? The error is write failure to DB — not business logic.\n\nLet me check orders logs for those keywords, and check p99 on gateway/payments.",
+     "signature": "057d4fff-10ea-4974-8013-efbf99260795"
+    }
+   ],
+   "usage": {
+    "input_tokens": 659,
+    "output_tokens": 759,
+    "cache_read_input_tokens": 5248,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_tjQ6vypYr5eSN6lRGZn77949",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "外部依赖 orders-db 数据库侧连接数达到上限(limit 100 / in use 100)并拒绝新连接,导致 orders 写入失败;orders 自身指标(CPU/内存/p99/qps/db_qps)均正常,不存在本地连接池泄漏,属不可操作的外部依赖故障。",
+      "recommended_actions": [],
+      "confidence": 0.86,
+      "evidence": "service_status: orders=degraded(err=0.22,p99=95ms,qps=300,mem=460MB,disk=38%), deps=['orders-db']; externals(NOT operable)=orders-db,payments-db,risk-svc。\nlogs_query(orders): \"23:03:07 ERROR orders-db: too many connections (limit 100, in use 100)\"、\"23:03:07 ERROR insert failed: connection refused by orders-db\";此前均为正常业务日志(order created / cache hit 99.2% / db query 18ms)。\nlogs_query(orders, keyword=pool/acquire/timeout): 无 \"ConnectionPool exhausted\"/\"acquire timeout\" 等客户端池耗尽特征,排除 pool-exhaust 场景。\nmetrics_query(orders): error_rate 0.0898→0.22(step change), p99 96.9(mean 95.76 无抬升), memory_mb 463.7→469.2 平稳, cpu_pct 30.6 平稳, qps 302→306 无激增, db_qps 60.5→61.2 平稳 → 非容量激增、非内存泄漏、非本地连接泄漏。\nlogs_query(orders-db): unknown service(外部依赖不可查询/不可操作),符合 external-dependency runbook:服务自身正常+日志指向 externals 清单内依赖 → 零变更,联系 DBA/供应商、开降级开关/熔断。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "No pool-exhausted / acquire timeout signatures. Confirms external dependency.\n\nLet me also check payments logs briefly (shared DB capacity? no, different DB) and check whether orders-db might be shared with other services causing connection use. Not queryable though. Let's check payments status errors — payments is fine (err 0.004).\n\nOne more check: full orders log tail (not just keyword) to see if there are other error patterns like \"slow query\" or \"max connections\" earlier, and check disk_pct etc. Already did tail 80 — clean.\n\nI'm confident. Let me also verify there's no crashloop marker for orders (restart would be plausible remedy) — logs show continuous normal operation.\n\nFinal: submit diagnosis with no changes recommended (external). recommended_actions: per instructions, if external dependency / needs human → empty list? Instruction 3 says don't execute changes, only give suggestions. submit_diagnosis recommended_actions: \"list of {tool, params}; empty if the fault needs human/external action\". So empty list, and put suggestions in root_cause/evidence? Better: root_cause one sentence, and I could include suggestions... the schema says empty if human/external action. I'll pass empty array and describe recommendations in my final answer plus maybe in root_cause text briefly. Keep root_cause as one sentence.\n\nActually, recommended_actions may accept non-tool suggestions? The spec: {tool, params}. Since external, empty. I'll put suggestions in my final message. But evidence field can include key lines.\n\nLet me write evidence with the key lines.",
+     "signature": "c8ff8d49-9a49-47ff-b0aa-42e65a887aa5"
+    }
+   ],
+   "usage": {
+    "input_tokens": 191,
+    "output_tokens": 814,
+    "cache_read_input_tokens": 6528,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 处置结论：外部依赖故障，不执行任何变更\n\n### 排查过程与证据\n\n| 检查项 | 结果 | 判断 |\n|---|---|---|\n| service_status | orders=degraded，err=0.22，p99=95ms，qps=300，mem=460MB，disk=38%；deps=['orders-db']；**externals 清单含 orders-db** | 自身状态仅告警，资源正常；依赖不可操作 |\n| logs_query(orders) | `ERROR orders-db: too many connections (limit 100, in use 100)`、`ERROR insert failed: connection refused by orders-db` | 报错点在**数据库服务端拒绝连接**，非本地队列/池 |\n| logs_query(orders, pool/acquire/timeout) | 无 `ConnectionPool exhausted` / `acquire timeout` | 排除 pool-exhaust（本地连接池泄漏）场景 |\n| metrics_query(orders) | error_rate 0.09→0.22(step)；p99 96.9（mean 95.76，**未抬升**）；cpu 30.6 平；qps 302→306 平；**db_qps 60.5→61.2 平**；mem 463→469 平 | 非容量激增、非内存泄漏、非连接泄漏（若泄漏则连接数应持续爬升并伴随 p99 抬升） |\n| runbook_search | 命中 external-dependency：触发特征明列 \"too many connections\"、外部依赖在 externals 清单=不可操作、**禁止一切变更工具** | 与现象完全吻合 |\n\n### 表象 vs 根因\n- **表象**：orders 报错、\"数据库连接数达上限、写入失败\"、error_rate 突增。\n- **根因**：`orders-db` 侧连接数被占满（100/100），服务端主动拒绝新连接；orders 只是受害方。orders 的 db_qps、qps、内存、p99 全部平稳，说明并非 orders 打开过多连接或突发流量所致（100 个连接中占用者不全来自 orders）。\n\n### 为什么不做变更（零变更原则）\n- `service_restart(orders)`：无法释放 DB 服务端被占用的连接，重启自身无效且可能掩盖问题、放大写入丢失。\n- `scale_up(orders)`：容量非瓶颈（qps/CPU 平稳），扩容只会让更多客户端抢同样的 100 个连接，加剧失败。\n- `log_cleanup`：磁盘 38%，无关。\n\n### 建议处置（需人工/外部协同）\n1. **联系 DBA / orders-db 负责人**：核查 `SHOW PROCESSLIST` / `max_connections`，找出占用 100 连接的会话来源（长事务、空闲未回收连接、其他客户端/批任务），必要时 kill 空闲会话或临时调大 `max_connections`。\n2. **orders 侧临时止损**：对 orders-db 写入启用熔断/限流 + 降级开关（写入入队或返回可重试错误码），避免错误扩散到 gateway。\n3. **连接治理（治本）**：orders 侧连接池设置 `maxPoolSize` 上限、`idleTimeout`/`maxLifetime` 回收、acquire timeout 与保底只读降级；对写接口加幂等，便于补写。\n4. **可观测性补齐**：为 orders-db 增加连接使用率、活跃会话、max_connections 指标与 80% 水位告警（当前该依赖无日志/指标接入，仅能靠 orders 侧间接发现）。\n5. **告警降噪**：确认 22:00 前后是否有其他系统的连接风暴或 DDL/慢查询堆积导致连接不释放。\n\n结构化结论已通过 submit_diagnosis 提交（confidence 0.86，recommended_actions 为空 —— 属外部依赖，需人工处理）。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "1e299832-cc3c-4202-b782-7bfe623b26a4"
+    }
+   ],
+   "usage": {
+    "input_tokens": 208,
+    "output_tokens": 868,
+    "cache_read_input_tokens": 7424,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

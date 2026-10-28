@@ -61,7 +61,8 @@ def _live_provider() -> object:
 
 
 # 渲染单次评测结果的 Markdown 报告
-def _render(results: list[TaskResult], summary: dict[str, Any]) -> str:
+def _render(results: list[TaskResult], summary: dict[str, Any],
+              tasks: list[EvalTask]) -> str:
     lines = [
         "# 评测报告",
         "",
@@ -134,7 +135,9 @@ def _dump(results: list[TaskResult], summary: dict[str, Any]) -> dict[str, Any]:
 
 
 # 执行评测主流程
-async def _run(mode: str, task_ids: list[str], out: Path | None) -> tuple[str, int]:
+async def _run(mode: str, task_ids: list[str], out: Path | None,
+                 suite: str = "base") -> tuple[str, int]:
+    tasks = _suite_tasks(suite)
     selected = [t for t in tasks if not task_ids or t.id in task_ids]
     if not selected:
         return f"error: no task matched {task_ids}", 1
@@ -172,7 +175,7 @@ async def _run(mode: str, task_ids: list[str], out: Path | None) -> tuple[str, i
                 )
 
     summary = summarize(results)
-    report = _render(results, summary)
+    report = _render(results, summary, tasks)
     print("\n" + report)
 
     if out:
@@ -213,7 +216,7 @@ def main() -> int:
     out = args.out or (
         RESULTS_DIR / f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{mode_name}.json"
     )
-    _, code = asyncio.run(_run(mode_name, args.task or [], out))
+    _, code = asyncio.run(_run(mode_name, args.task or [], out, args.suite))
 
     if args.compare:
         if not args.compare.exists() or not out.exists():
