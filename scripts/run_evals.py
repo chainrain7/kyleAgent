@@ -31,8 +31,18 @@ from evals.cassette import (  # noqa: E402
     load_cassette,
     save_cassette,
 )
-from evals.harness import TaskResult, run_task, summarize  # noqa: E402
+from evals.harness import EvalTask, TaskResult, run_task, summarize  # noqa: E402
+from evals.oncall_tasks import ONCALL_TASKS  # noqa: E402
 from evals.tasks import TASKS  # noqa: E402
+
+
+# 按套件名返回任务集(base=通用能力,oncall=值班业务)
+def _suite_tasks(suite: str) -> list[EvalTask]:
+    if suite == "base":
+        return TASKS
+    if suite == "oncall":
+        return ONCALL_TASKS
+    return [*TASKS, *ONCALL_TASKS]
 
 CASSETTE_DIR = REPO_ROOT / "evals" / "cassettes"
 RESULTS_DIR = REPO_ROOT / "evals" / "results"
@@ -51,7 +61,8 @@ def _live_provider() -> object:
 
 
 # 渲染单次评测结果的 Markdown 报告
-def _render(results: list[TaskResult], summary: dict[str, Any]) -> str:
+def _render(results: list[TaskResult], summary: dict[str, Any],
+              tasks: list[EvalTask]) -> str:
     lines = [
         "# 评测报告",
         "",
@@ -64,7 +75,7 @@ def _render(results: list[TaskResult], summary: dict[str, Any]) -> str:
         "| 任务 | 类别 | 结果 | 步数 | LLM 调用 | 失败原因 |",
         "|---|---|---|---|---|---|",
     ]
-    by_id = {t.id: t for t in TASKS}
+    by_id = {t.id: t for t in tasks}
     for r in results:
         llm = r.metrics.get("llm") or {}
         steps = r.metrics.get("steps") or 0
@@ -124,8 +135,10 @@ def _dump(results: list[TaskResult], summary: dict[str, Any]) -> dict[str, Any]:
 
 
 # 执行评测主流程
-async def _run(mode: str, task_ids: list[str], out: Path | None) -> tuple[str, int]:
-    selected = [t for t in TASKS if not task_ids or t.id in task_ids]
+async def _run(mode: str, task_ids: list[str], out: Path | None,
+                 suite: str = "base") -> tuple[str, int]:
+    tasks = _suite_tasks(suite)
+    selected = [t for t in tasks if not task_ids or t.id in task_ids]
     if not selected:
         return f"error: no task matched {task_ids}", 1
 
@@ -162,7 +175,7 @@ async def _run(mode: str, task_ids: list[str], out: Path | None) -> tuple[str, i
                 )
 
     summary = summarize(results)
-    report = _render(results, summary)
+    report = _render(results, summary, tasks)
     print("\n" + report)
 
     if out:
@@ -186,19 +199,24 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="结果 JSON 存档路径")
     parser.add_argument("--compare", type=Path, metavar="OLD.json", help="与历史结果对比")
     parser.add_argument("--list", action="store_true", help="列出全部任务")
+    parser.add_argument(
+        "--suite", choices=["base", "oncall", "all"], default="base",
+        help="任务套件:base=通用能力 / oncall=值班业务 / all",
+    )
     args = parser.parse_args()
 
+    tasks = _suite_tasks(args.suite)
     if args.list:
-        for t in TASKS:
+        for t in tasks:
             cas = CASSETTE_DIR / f"{t.id}.json"
-            print(f"{t.id:22s} [{t.category:8s}] cassette={'Y' if cas.exists() else '-'}  {t.note}")
+            print(f"{t.id:34s} [{t.category:8s}] cassette={'Y' if cas.exists() else '-'}  {t.note}")
         return 0
 
     mode_name = "record" if args.record else "live" if args.live else "replay"
     out = args.out or (
         RESULTS_DIR / f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{mode_name}.json"
     )
-    _, code = asyncio.run(_run(mode_name, args.task or [], out))
+    _, code = asyncio.run(_run(mode_name, args.task or [], out, args.suite))
 
     if args.compare:
         if not args.compare.exists() or not out.exists():

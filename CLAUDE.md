@@ -66,6 +66,11 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **OnCallCopilot** (Phases 0–3 landed): eval suite `--suite oncall` records/replays
+  20 fault scenarios with triple assertions (root-cause hit / exact mutation set /
+  recovery-or-zero-mutation end state); CI gate `tests/integration/test_oncall_eval_replay.py`;
+  harness preapproves tools (assertions replace approvals) while real approval flow is
+  covered by `tests/integration/test_oncall_permission_flow.py`.
 - **OnCallCopilot** (Phases 0–2 landed): SRE on-call domain layer on top of the
   runtime — file-based sim env (`oncall/sim.py`), 20 fault scenarios (`oncall/faults.py`,
   14 recoverable / 6 diagnosis-only), 9 domain tools incl. approval-gated mutations with
