@@ -317,6 +317,19 @@ class AgentRunner:
                         "terminal snapshot persist failed run_id=%s", run_id
                     )
 
+            # OnCallCopilot:run 含 submit_diagnosis 时生成处置报告(失败不影响 run)
+            if self._config.oncall.enabled:
+                try:
+                    from kyle_agent.oncall.report import generate_report
+                    from kyle_agent.oncall.sim import SimEnv
+
+                    env_dir = Path(self._config.oncall.env_dir).expanduser()
+                    generate_report(run_path, SimEnv(env_dir), run_id)
+                except Exception:
+                    logging.getLogger(__name__).exception(
+                        "oncall report generation failed run_id=%s", run_id
+                    )
+
         # 成功 run 的结论摘要回写记忆库(截断 300 字,来源标注 run)
         if (
             memory_index is not None
