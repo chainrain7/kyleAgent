@@ -52,12 +52,102 @@ class Handler(BaseHTTPRequestHandler):
             and any(b.get("type") == "tool_result" for b in last_content)
         )
 
-        if "summarizes conversations" in system_text:
+        tool_names = [
+            str(t2.get("name", "")) for t2 in body.get("tools") or []
+        ]
+        if "alerts_list" in tool_names:
+            self._respond_oncall(body)  # OnCallCopilot 值班演示分支
+        elif "summarizes conversations" in system_text:
             self._respond_text("MOCK COMPACT SUMMARY: goal done, files verified.")
         elif saw_tool_result:
             self._respond_text("TASK DONE")
         else:
             self._respond_tool_use()
+
+    # OnCallCopilot 值班演示:按消息形状推进查证→审批重启→结论→收尾
+    # (mock 直接读 KYLE_ONCALL_ENV 的 alerts.json 取目标服务)
+    def _respond_oncall(self, body: dict) -> None:
+        import json as _json
+        import os as _os
+        from pathlib import Path as _Path
+
+        env_dir = _os.environ.get("KYLE_ONCALL_ENV",
+                                  "~/.kyle/oncall/env")
+        svc = "orders"
+        try:
+            alerts = _json.loads(
+                (_Path(env_dir).expanduser() / "alerts.json").read_text(
+                    encoding="utf-8"))
+            firing = [a for a in alerts if a.get("status") == "firing"]
+            if firing:
+                svc = firing[0].get("service", "orders")
+        except Exception:
+            pass
+
+        # 状态只看 assistant 消息:user goal 文本里含工具名词面量
+        # ("必须调用 submit_diagnosis")会污染整包扫描的判断
+        assistant = _json.dumps(
+            [m for m in (body.get("messages") or [])
+             if m.get("role") == "assistant"],
+            ensure_ascii=False,
+        )
+        _json.dumps(
+            [m for m in (body.get("messages") or [])
+             if m.get("role") != "assistant"],
+            ensure_ascii=False,
+        )
+        if "submit_diagnosis" in assistant:
+            self._respond_text(
+                f"处置完成:{svc} 故障已恢复,结论已提交,报告已生成。")
+            return
+        if "service_restart" in assistant:
+            self._stream_tool_calls([
+                ("submit_diagnosis", {"root_cause": f"{svc} fault recovered",
+                                      "confidence": 0.9,
+                                      "evidence": "mock evidence line"}),
+            ])
+            return
+        if "logs_query" in assistant:
+            # 查证已完成一轮 → 申请变更(触发审批卡)
+            self._stream_tool_calls([
+                ("service_restart", {"service": svc}),
+            ])
+            return
+        self._stream_tool_calls([
+            ("alerts_list", {}),
+            ("service_status", {}),
+            ("logs_query", {"service": svc, "level": "ERROR", "tail": 50}),
+        ])
+
+    # 多工具 tool_use 流式响应(OnCallCopilot 演示分支)
+    def _stream_tool_calls(self, calls: list[tuple[str, dict]]) -> None:
+        import json as _json
+        events: list[tuple[str, dict]] = [
+            ("message_start", {"type": "message_start", "message": {
+                "id": "msg_mock_oc", "type": "message", "role": "assistant",
+                "content": [], "model": "mock", "stop_reason": None,
+                "usage": {"input_tokens": 100, "output_tokens": 1},
+            }}),
+        ]
+        for i, (name, input_data) in enumerate(calls):
+            events.append(("content_block_start",
+                           {"type": "content_block_start", "index": i,
+                            "content_block": {"type": "tool_use",
+                                              "id": f"toolu_oc_{i}",
+                                              "name": name, "input": {}}}))
+            events.append(("content_block_delta",
+                           {"type": "content_block_delta", "index": i,
+                            "delta": {"type": "input_json_delta",
+                                      "partial_json": _json.dumps(
+                                          input_data, ensure_ascii=False)}}))
+            events.append(("content_block_stop",
+                           {"type": "content_block_stop", "index": i}))
+        events.append(("message_delta",
+                       {"type": "message_delta",
+                        "delta": {"stop_reason": "tool_use", "stop_sequence": None},
+                        "usage": {"output_tokens": 20}}))
+        events.append(("message_stop", {"type": "message_stop"}))
+        _sse(self, events)
 
     # 返回 thinking + text + tool_use 的完整流，覆盖 provider 的三种 block 解析
     def _respond_tool_use(self) -> None:

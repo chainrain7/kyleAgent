@@ -66,6 +66,12 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **OnCallCopilot** (Phases 0–4 landed): duty workbench on the Web Console — alert
+  queue (click → canned diagnosis goal), service health polling (3s `/api/state`),
+  drill panel (POST `/api/inject|reset`), impact-aware approval cards, report overlay
+  (`oncall/report.py` generated at run end; read via `/api/report/{name}`). Demo path:
+  mock server has an oncall branch keyed on request tools (state machine reads env
+  alerts; never scan full message text for tool names — goal text mentions them).
 - **OnCallCopilot** (Phases 0–3 landed): eval suite `--suite oncall` records/replays
   20 fault scenarios with triple assertions (root-cause hit / exact mutation set /
   recovery-or-zero-mutation end state); CI gate `tests/integration/test_oncall_eval_replay.py`;

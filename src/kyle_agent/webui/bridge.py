@@ -20,9 +20,10 @@ import os
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,6 @@ async def ws_relay(ws: WebSocket) -> None:
 
 # ── OnCallCopilot 演练控制 API(操作对象是文件系统模拟环境,不经 daemon) ──
 
-from fastapi import HTTPException
-from pydantic import BaseModel
 
 
 # 注入请求体

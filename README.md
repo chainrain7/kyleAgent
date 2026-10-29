@@ -422,7 +422,10 @@ kyleCode/
 - ✅ **Phase 3** 业务评测集:20 剧本 × 三重断言(定位命中 / 变更动作集精确一致 /
   终态恢复或零变更标记保留);**真实 LLM 首跑 80% → 迭代后 20/20**,离线回放
   CI 门禁(`--suite oncall`,2.5s 全绿);真实审批流专项测试(放行恢复/拒绝保留)
-- ⏳ Phase 4 值班工作台前端 · Phase 5 量化报告与简历交付
+- ✅ **Phase 4** 值班工作台:告警队列(点击即发起标准诊断)+ 服务健康 + 故障演练面板
+  (20 剧本一键注入)+ **变更审批卡带拓扑影响面** + 处置报告浮层(时间线/证据链);
+  实测走通 注入→诊断→审批→恢复→报告 全链路([运行截图](docs/product/img/05-workbench-live.png))
+- ⏳ Phase 5 量化报告与简历交付
 
 设计文档:[docs/product/PRD.md](docs/product/PRD.md) ·
 [docs/design/tech-design.md](docs/design/tech-design.md) ·

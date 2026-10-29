@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kyleAgent</title>
+<title>OnCallCopilot</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2322d3ee'/%3E%3Cstop offset='1' stop-color='%23818cf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M12 8v16M12 16l9-8M12 16l9 8' stroke='%2307090f' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
 </head>
@@ -20,7 +20,7 @@
         <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
               stroke-linecap="round" fill="none"/>
       </svg>
-      <span class="brand-name">kyleAgent</span>
+      <span class="brand-name">OnCallCopilot</span>
     </div>
     <div class="top-status">
       <div id="meter" class="meter hidden" title="上下文水位">
@@ -44,23 +44,46 @@
         新会话
       </button>
 
-      <section class="side-sec">
-        <div class="sec-label">当前会话</div>
-        <div class="side-kv"><span>id</span><b id="sessionId" class="mono">—</b></div>
-        <div class="side-kv"><span>状态</span><b id="sessionState">—</b></div>
-        <div class="side-kv"><span>最近 run</span><b id="lastRun" class="mono">—</b></div>
+      <div id="drillRow" class="drill-row hidden">
+        <button id="btnDrill" class="btn-drill">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+          故障演练 ▾
+        </button>
+        <button id="btnDrillReset" class="btn-drill ghost" title="重置环境">↺</button>
+      </div>
+      <div id="drillMenu" class="drill-menu hidden"></div>
+
+      <section id="alertsSec" class="side-sec hidden">
+        <div class="sec-label">告警队列 · <span id="alertCount">0</span> 活跃</div>
+        <div id="alertList" class="alert-list"></div>
+      </section>
+
+      <section id="healthSec" class="side-sec hidden">
+        <div class="sec-label">服务健康</div>
+        <div id="svcList"></div>
+      </section>
+
+      <section id="reportsSec" class="side-sec hidden">
+        <div class="sec-label">处置报告</div>
+        <div id="reportList"></div>
       </section>
 
       <section class="side-sec">
-        <div class="sec-label">操作</div>
-        <button id="btnCompact" class="side-btn" disabled>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 4 8 9M14 20l2-5"/></svg>
-          压缩上下文
-        </button>
-        <button id="btnClose" class="side-btn danger" disabled>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          关闭会话
-        </button>
+        <div class="sec-label">会话</div>
+        <div class="side-kv"><span>id</span><b id="sessionId" class="mono">—</b></div>
+        <div class="side-kv"><span>状态</span><b id="sessionState">—</b></div>
+        <div class="side-kv"><span>最近 run</span><b id="lastRun" class="mono">—</b></div>
+        <div class="side-actions">
+          <button id="btnCompact" class="side-btn" disabled>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 4 8 9M14 20l2-5"/></svg>
+            压缩上下文
+          </button>
+          <button id="btnClose" class="side-btn danger" disabled>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            关闭会话
+          </button>
+        </div>
       </section>
 
       <section class="side-sec">
@@ -87,8 +110,8 @@
               <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
                     stroke-linecap="round" fill="none"/>
             </svg>
-            <h1 class="hero-title">kyleAgent</h1>
-            <p class="hero-sub">本地 Agent 运行时 —— 规划、工具调用、审批与记忆,全程可视</p>
+            <h1 class="hero-title">OnCallCopilot</h1>
+            <p class="hero-sub">值班副驾 —— 告警进来自动查,危险操作你审批,处置报告自动出</p>
             <div class="hero-chips">
               <button class="chip-btn" data-prompt="阅读 README.md 并用三句话总结这个项目">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
@@ -110,7 +133,7 @@
 
       <div id="composerWrap">
         <div id="composer" class="composer">
-          <textarea id="input" rows="1" placeholder="给 kyleAgent 一个目标…"></textarea>
+          <textarea id="input" rows="1" placeholder="给 OnCallCopilot 一个目标,或点击左侧告警发起诊断…"></textarea>
           <button id="btnSend" class="send" title="发送" disabled>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
                  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -124,7 +147,18 @@
 
   </div>
 </div>
+<div id="reportOverlay" class="report-overlay hidden">
+  <div class="report-sheet">
+    <div class="report-bar">
+      <button id="reportBack" class="report-back">← 返回对话</button>
+      <b id="reportTitle">处置报告</b>
+      <span id="reportMeta" class="mono"></span>
+    </div>
+    <div id="reportBody" class="report-body"></div>
+  </div>
+</div>
 <div id="toast" class="toast hidden"></div>
 <script src="/static/app.js"></script>
+<script src="/static/oncall-panel.js"></script>
 </body>
 </html>
