@@ -214,6 +214,16 @@ function permCard(e) {
   head.appendChild(el("span", "perm-tool", e.tool_name || ""));
   card.appendChild(head);
   card.appendChild(el("pre", "perm-cmd", e.param_preview || previewOf(e.params)));
+  // 变更工具附加影响面提示(OnCallCopilot,impactOf 定义于 oncall-panel.js)
+  const impact = typeof impactOf === "function" ? impactOf(e.tool_name, e.params) : null;
+  if (impact) {
+    const tip = el("div", "impact");
+    tip.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5c04e" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+    const box = el("div");
+    box.innerHTML = impact;
+    tip.appendChild(box);
+    card.appendChild(tip);
+  }
   const actions = el("div", "perm-actions");
   const choices = [
     ["y", "allow_once", "允许一次"], ["a", "always_allow", "始终允许"],
@@ -435,27 +445,14 @@ async function onOpen() {
   state.connected = true;
   setConn("connecting", "subscribing");
   try {
-    const sub = await send("event.subscribe", {
-      topics: ["*"], scope: "global",
-    });
-    if (sub.replayed_count > 0) {
-      append(el("div", "sysline", `↺ 回放了 ${sub.replayed_count} 条历史事件`), true);
-    }
-    // 首次进入且无会话:resume 最近活跃会话(空 transcript 时回放其最近 run);
-    // 否则新建
-    if (!state.sessionId) {
+    let replayAnchor = null;
+    if (!state.everConnected) {
       try {
         const r = await send("session.resume", {});
         state.sessionId = r.session_id;
         state.lastRunId = r.last_run_id || null;
+        replayAnchor = r.last_run_id;
         append(el("div", "sysline ok", `↩ 恢复会话 ${r.session_id}`), true);
-        if (state.everConnected === false && r.last_run_id) {
-          // 通过再次订阅携带 replay_from_run?桥接层允许重复订阅:
-          // 直接发一次带 replay 的订阅把最近 run 的历史补齐
-          await send("event.subscribe", {
-            topics: ["*"], scope: "global", replay_from_run: r.last_run_id,
-          });
-        }
       } catch {
         const c = await send("session.create", { mode: "chat" });
         state.sessionId = c.session_id;
@@ -463,6 +460,13 @@ async function onOpen() {
       }
     } else {
       append(el("div", "sysline ok", "✓ 已重新连接,会话保持"), true);
+    }
+    // 单次订阅:首次连接带 replay 锚点(避免二次订阅导致实时事件双推)
+    const subParams = { topics: ["*"], scope: "global" };
+    if (replayAnchor) subParams.replay_from_run = replayAnchor;
+    const sub = await send("event.subscribe", subParams);
+    if (sub.replayed_count > 0) {
+      append(el("div", "sysline", `↺ 回放了 ${sub.replayed_count} 条历史事件`), true);
     }
     state.everConnected = true;
     setConn(state.running ? "busy" : "ready", state.running ? "running" : "ready");
