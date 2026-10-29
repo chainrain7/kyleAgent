@@ -1,9 +1,36 @@
-# kyleAgent
+# OnCallCopilot
 
-kyleAgent 是一个用 Python 3.12 实现的本地 AI Agent 运行时：采用 daemon + 多客户端架构（`kyle-core` 常驻守护进程，CLI / TUI 作为客户端），把 Claude Code 式编程 Agent 的核心机制——ReAct 循环、工具调用、权限审批、事件流、会话记忆、上下文压缩、Skills / Subagents / MCP 扩展——用一个小而完整的工程实现出来。它是一个用于学习与教学的开源 mini 实现，不追求复刻任何商业产品的全部功能。
+> 面向 SRE 的智能值班助手 —— 告警进来自动查,危险操作你审批,处置报告自动出。
+> 基于**自研 Agent 运行时 kyleAgent** 构建(daemon + 多客户端架构)。
 
-- 仓库：<https://github.com/chainrain7/kyleCode>
-- 协议：客户端与 daemon 之间通过 TCP `127.0.0.1:7437` 上的 JSON-RPC 2.0 over NDJSON 通信，全部命令与事件都是类型化的 pydantic 模型（见 [WIRE_PROTOCOL.md](WIRE_PROTOCOL.md)）
+![值班工作台](docs/product/img/05-workbench-live.png)
+
+| 核心指标(全部可复现) | 数值 |
+|---|---|
+| 故障剧本评测(三重断言) | 真实 LLM 首轮 **80% → 迭代后 100%**,20/20 剧本 |
+| 离线回归门禁(cassette 回放) | 20/20 · **2.5s** · 零网络零 Key |
+| 越权操作 | **0**(机器断言 + 真实审批流测试双层证据) |
+| 诊断类剧本零变更(不该动手时不动手) | 6/6 首轮全过 |
+| 测试 | 449 项 · ubuntu/macos/windows 三平台 CI |
+
+一次完整的值班闭环:**告警注入 → Agent 查日志/查指标/检索 runbook 推理根因 →
+变更操作(重启/扩容/清盘)弹出带影响面的审批卡 → 人工放行 → 告警自动 resolved →
+处置报告(时间线/证据链)生成**。[处置报告实拍](docs/product/img/06-report-live.png) ·
+[产品原型](docs/product/mockups.md) · [量化报告](docs/report/metrics.md) ·
+[PRD](docs/product/PRD.md) · [技术设计](docs/design/tech-design.md)
+
+**五分钟演示**:
+
+```bash
+uv sync --extra webui
+uv run kyle-core &            # 终端 1:daemon(配置 [oncall] enabled)
+uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
+# 浏览器:故障演练 → 选剧本 → 点告警卡 → Enter → 审批卡按 y → 看报告
+```
+
+---
+
+# kyleAgent 运行时(引擎)
 
 ## 特性总览
 
