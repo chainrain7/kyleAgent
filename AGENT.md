@@ -66,6 +66,9 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **OnCallCopilot** (complete, Phases 0–5): quantified report at docs/report/metrics.md
+  and resume/interview deliverables at docs/career/resume.md — keep their numbers in sync
+  with evals results when behavior changes.
 - **OnCallCopilot** (Phases 0–4 landed): duty workbench on the Web Console — alert
   queue (click → canned diagnosis goal), service health polling (3s `/api/state`),
   drill panel (POST `/api/inject|reset`), impact-aware approval cards, report overlay
