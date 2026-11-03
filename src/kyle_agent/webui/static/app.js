@@ -79,7 +79,7 @@ function setSessionUI() {
     pill.className = "state-pill waiting";
     label.textContent = "waiting_for_input";
   } else {
-    pill.className = "state-pill waiting";
+    pill.className = "state-pill"; // 无会话:中性灰点
     label.textContent = "—";
   }
   $("#btnCompact").disabled = !state.sessionId || state.running;

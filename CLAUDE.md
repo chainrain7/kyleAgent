@@ -97,6 +97,12 @@ Beyond the staged S0–S7 base, the runtime now ships:
   single-page frontend (optional deps `[webui]`, entry `kyle-webui`). The bridge
   never parses or rewrites protocol messages; frontend has no build step.
   CI installs `--extra webui`; E2E coverage in `tests/integration/test_webui_bridge.py`.
+  Design system v2 "control-room": neutral graphite dark, white is the only action
+  color (primary buttons/focus ring/send), status colors are semantic only
+  (green=healthy, amber=approval, red=alert). Bridge serves `/` and `/static` with
+  `Cache-Control: no-cache` (browsers must revalidate after asset changes).
+  Frontend `mdRender` supports headings/lists/fences/links and pipe tables (report
+  overlay wraps content in `.assistant-text` to reuse table styles).
 
 Docs rule: every functional change updates this file and README together.
 
