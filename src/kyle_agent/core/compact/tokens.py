@@ -8,9 +8,20 @@ token 记账，供上下文水位检测、compact 压缩预估与 prompt 缓存�
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 
-import tiktoken
-from tiktoken import Encoding
+# BPE 词表离线缓存必须在这些环境变量于进程内出现前设置——
+# tiktoken 在 import 后的首次 get_encoding 时读取。词表文件
+# (1.6MB)随包分发,CI/离线环境零网络可用;用户显式设置的
+# TIKTOKEN_CACHE_DIR 优先,不覆盖。
+os.environ.setdefault(
+    "TIKTOKEN_CACHE_DIR",
+    str(Path(__file__).parent / "tiktoken_cache"),
+)
+
+import tiktoken  # noqa: E402
+from tiktoken import Encoding  # noqa: E402
 
 # 模块级编码缓存：懒加载，避免 import 阶段付出编码表初始化开销
 _ENCODING: Encoding | None = None

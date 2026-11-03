@@ -66,6 +66,12 @@ Beyond the staged S0–S7 base, the runtime now ships:
   daemon restart, at-least-once tool semantics).
 - **Model routing** (`core/llm/router.py`) and **OpenAI-compatible backend**
   (`core/llm/openai_provider.py` + `factory.py`).
+- **tiktoken offline** (CI fix): `core/compact/tokens.py` sets
+  `TIKTOKEN_CACHE_DIR` to an in-package cache BEFORE importing tiktoken; the
+  1.6MB cl100k_base blob is committed under `core/compact/tiktoken_cache/`.
+  First `get_encoding` in a fresh CI runner must not hit the network (it either
+  fails fast on linux/mac or hangs forever on windows runners otherwise).
+  User-set TIKTOKEN_CACHE_DIR wins (setdefault).
 - **OnCallCopilot** (complete, Phases 0–5): quantified report at docs/report/metrics.md
   and resume/interview deliverables at docs/career/resume.md — keep their numbers in sync
   with evals results when behavior changes.
