@@ -420,9 +420,9 @@ svg { flex: none; }
 .assistant-text hr { border: none; border-top: 1px solid var(--line); margin: 1.2em 0; }
 .assistant-text table { border-collapse: collapse; margin: 0.7em 0; font-size: 13px; }
 .assistant-text th, .assistant-text td {
-  border: 1px solid var(--line-2); padding: 5px 12px; text-align: left;
+  border: 1px solid var(--line); padding: 5px 12px; text-align: left;
 }
-.assistant-text th { background: var(--bg2); font-weight: 600; }
+.assistant-text th { background: var(--bg2); font-weight: 600; color: var(--t2); }
 
 .caret {
   display: inline-block; width: 7px; height: 15px; margin-left: 3px;

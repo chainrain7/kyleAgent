@@ -152,7 +152,8 @@ async function openReport(name) {
     if (!r.ok) throw new Error(data.detail || "not found");
     document.getElementById("reportMeta").textContent = name;
     const body = document.getElementById("reportBody");
-    body.innerHTML = mdRender(data.content || "");
+    // 套 assistant-text 容器,复用对话区全部正文/表格样式
+    body.innerHTML = '<div class="assistant-text">' + mdRender(data.content || "") + "</div>";
     document.getElementById("reportOverlay").classList.remove("hidden");
   } catch (e) {
     toast("报告读取失败: " + (e.message || e));
@@ -214,7 +215,7 @@ function renderEnvSummary(services, alerts) {
   hero.classList.remove("hidden");
   if (firing.length > 0) {
     hero.className = "hero-env alerting";
-    heroText.innerHTML = `<b>${firing.length} 条活跃告警</b> — ${firing[0].service} ${firing[0].summary || ""}`;
+    heroText.innerHTML = `<b>${firing.length} 条活跃告警</b> — ${firing[0].summary || firing[0].service}`;
   } else if (down.length > 0) {
     hero.className = "hero-env alerting";
     heroText.innerHTML = `<b>${down.length} 个服务异常</b> — ${down.join(", ")}`;

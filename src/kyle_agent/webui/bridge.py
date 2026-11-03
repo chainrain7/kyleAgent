@@ -17,10 +17,11 @@ import argparse
 import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -35,7 +36,9 @@ app = FastAPI(title="kyleAgent Web UI", docs_url=None, redoc_url=None)
 
 # 静态资源禁止启发式缓存:开发迭代时浏览器必须向服务端 revalidate(ETag 仍可 304)
 @app.middleware("http")
-async def no_stale_static(request: Request, call_next):
+async def no_stale_static(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     response = await call_next(request)
     if request.url.path.startswith("/static") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-cache"

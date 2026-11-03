@@ -114,17 +114,44 @@ function mdRender(src) {
   const lines = text.split("\n");
   const out = [];
   let list = null;
+  let table = null; // {rows: string[][], headerDone: bool}
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  // 收拢连续 | 行为表格:首行作表头,--- 分隔行跳过
+  const flushTable = () => {
+    if (!table) return;
+    const [head, ...rows] = table.rows;
+    let html = "<table><thead><tr>" +
+      head.map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+    for (const r of rows) {
+      html += "<tr>" + r.map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>";
+    }
+    out.push(html + "</tbody></table>");
+    table = null;
+  };
+  const splitRow = (line) =>
+    line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
   for (const line of lines) {
     const h = /^(#{1,4})\s+(.*)$/.exec(line);
     const ul = /^\s*[-*]\s+(.*)$/.exec(line);
     const ol = /^\s*\d+[.、]\s+(.*)$/.exec(line);
-    if (h) { if (list) { out.push(`</${list}>`); list = null; } out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); }
-    else if (ul) { if (list !== "ul") { if (list) out.push(`</${list}>`); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(ul[1])}</li>`); }
-    else if (ol) { if (list !== "ol") { if (list) out.push(`</${list}>`); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(ol[1])}</li>`); }
-    else if (line.trim() === "") { if (list) { out.push(`</${list}>`); list = null; } }
-    else { if (list) { out.push(`</${list}>`); list = null; } out.push(`<p>${inline(line)}</p>`); }
+    const isPipe = /^\s*\|/.test(line);
+    const isSep = /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.includes("-");
+    if (isPipe && !isSep) {
+      closeList();
+      if (!table) table = { rows: [] };
+      table.rows.push(splitRow(line));
+      continue;
+    }
+    flushTable();
+    if (h) { closeList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); }
+    else if (isSep) { /* 表头分隔行,跳过 */ }
+    else if (ul) { if (list !== "ul") { closeList(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(ul[1])}</li>`); }
+    else if (ol) { if (list !== "ol") { closeList(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(ol[1])}</li>`); }
+    else if (line.trim() === "") { closeList(); }
+    else { closeList(); out.push(`<p>${inline(line)}</p>`); }
   }
-  if (list) out.push(`</${list}>`);
+  flushTable();
+  closeList();
   let html = out.join("\n");
   html = html.replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[Number(i)]);
   return html;
