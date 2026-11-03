@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OnCallCopilot</title>
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2322d3ee'/%3E%3Cstop offset='1' stop-color='%23818cf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M12 8v16M12 16l9-8M12 16l9 8' stroke='%2307090f' stroke-width='3' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231c1c20'/%3E%3Crect x='.5' y='.5' width='31' height='31' rx='8.5' fill='none' stroke='rgba(255,255,255,.16)'/%3E%3Cpath d='M11 8v16M11 16l10-8M11 16l10 8' stroke='%23f4f4f5' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
 </head>
 <body>
 <div id="app">
@@ -13,14 +13,16 @@
   <header id="topbar">
     <div class="brand">
       <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#818cf8"/>
-        </linearGradient></defs>
-        <rect width="32" height="32" rx="8" fill="url(#bg1)"/>
-        <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
-              stroke-linecap="round" fill="none"/>
+        <rect width="32" height="32" rx="9" fill="#1c1c20"/>
+        <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="none" stroke="rgba(255,255,255,0.16)"/>
+        <path d="M11 8v16M11 16l10-8M11 16l10 8" stroke="#f4f4f5" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </svg>
       <span class="brand-name">OnCallCopilot</span>
+      <span class="brand-div"></span>
+      <span id="envChip" class="env-chip hidden">
+        <span class="edot"></span><span id="envChipText">环境获取中…</span>
+      </span>
     </div>
     <div class="top-status">
       <div id="meter" class="meter hidden" title="上下文水位">
@@ -40,7 +42,7 @@
     <aside id="sidebar">
       <button id="btnNew" class="btn-new">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+             stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         新会话
       </button>
 
@@ -55,7 +57,7 @@
       <div id="drillMenu" class="drill-menu hidden"></div>
 
       <section id="alertsSec" class="side-sec hidden">
-        <div class="sec-label">告警队列 · <span id="alertCount">0</span> 活跃</div>
+        <div class="sec-label">告警队列 <span id="alertCount" class="count-badge zero">0</span></div>
         <div id="alertList" class="alert-list"></div>
       </section>
 
@@ -71,9 +73,11 @@
 
       <section class="side-sec">
         <div class="sec-label">会话</div>
-        <div class="side-kv"><span>id</span><b id="sessionId" class="mono">—</b></div>
-        <div class="side-kv"><span>状态</span><b id="sessionState">—</b></div>
-        <div class="side-kv"><span>最近 run</span><b id="lastRun" class="mono">—</b></div>
+        <div class="side-kv"><span>状态</span>
+          <span id="sessionState" class="state-pill waiting">
+            <span class="sdot"></span><span id="sessionStateText">—</span>
+          </span>
+        </div>
         <div class="side-actions">
           <button id="btnCompact" class="side-btn" disabled>
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 4 8 9M14 20l2-5"/></svg>
@@ -86,14 +90,10 @@
         </div>
       </section>
 
-      <section class="side-sec">
-        <div class="sec-label">快捷键</div>
-        <div class="side-kv"><span>发送</span><b class="kbd">Enter</b></div>
-        <div class="side-kv"><span>换行</span><b class="kbd">⇧ Enter</b></div>
-        <div class="side-kv"><span>审批</span><b class="kbd">y a n d</b></div>
-      </section>
-
-      <footer class="side-foot">daemon <span id="coreAddr" class="mono">127.0.0.1:7437</span></footer>
+      <footer class="side-foot">
+        <div class="foot-row"><span>daemon</span><span id="coreAddr" class="mono">127.0.0.1:7437</span></div>
+        <div class="foot-row"><span>session</span><b id="sessionId" class="mono">—</b></div>
+      </footer>
     </aside>
 
     <main id="main">
@@ -102,28 +102,39 @@
         <div id="transcript">
 
           <div id="hero">
-            <svg class="hero-mark" viewBox="0 0 32 32" aria-hidden="true">
-              <defs><linearGradient id="hg1" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#818cf8"/>
-              </linearGradient></defs>
-              <rect width="32" height="32" rx="8" fill="url(#hg1)"/>
-              <path d="M12 8v16M12 16l9-8M12 16l9 8" stroke="#07090f" stroke-width="3"
-                    stroke-linecap="round" fill="none"/>
-            </svg>
-            <h1 class="hero-title">OnCallCopilot</h1>
-            <p class="hero-sub">值班副驾 —— 告警进来自动查,危险操作你审批,处置报告自动出</p>
-            <div class="hero-chips">
-              <button class="chip-btn" data-prompt="阅读 README.md 并用三句话总结这个项目">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
-                总结当前项目
+            <div class="hero-greet" id="heroGreet">—</div>
+            <h1 class="hero-title">值班台已就绪</h1>
+            <p class="hero-env" id="heroEnv">
+              <span class="env-dot"></span><span id="heroEnvText">正在获取环境快照…</span>
+            </p>
+            <div class="hero-grid">
+              <button class="hero-card" data-prompt="阅读 README.md 并用三句话总结这个项目">
+                <span class="hc-ico">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                </span>
+                <span class="hc-title">总结当前项目</span>
+                <span class="hc-desc">阅读 README,三句话讲清这个项目是做什么的</span>
               </button>
-              <button class="chip-btn" data-prompt="列出 src 目录结构,指出最核心的三个模块">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                梳理代码结构
+              <button class="hero-card" data-prompt="列出 src 目录结构,指出最核心的三个模块">
+                <span class="hc-ico">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                </span>
+                <span class="hc-title">梳理代码结构</span>
+                <span class="hc-desc">扫一遍源码目录,标出最核心的三个模块</span>
               </button>
-              <button class="chip-btn" data-prompt="把 hello.txt 的内容改成 kyle rulez 并确认写入成功">
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
-                试一次写文件
+              <button class="hero-card" data-prompt="把 hello.txt 的内容改成 kyle rulez 并确认写入成功">
+                <span class="hc-ico">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+                </span>
+                <span class="hc-title">试一次文件写入</span>
+                <span class="hc-desc">修改 hello.txt,体验工具审批与执行回执</span>
+              </button>
+              <button class="hero-card" data-prompt="检查当前各服务健康状态与告警队列,输出一份值班交接摘要(现状/风险/建议关注点)">
+                <span class="hc-ico">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </span>
+                <span class="hc-title">值班交接摘要</span>
+                <span class="hc-desc">盘点服务健康与告警,生成交接要点</span>
               </button>
             </div>
           </div>

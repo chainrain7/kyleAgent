@@ -1,0 +1,6 @@
+{"ts": "T-12", "level": "INFO", "msg": "request served /api/checkout 200 88ms"}
+{"ts": "T-10", "level": "INFO", "msg": "healthcheck orders ok 12ms"}
+{"ts": "T-8", "level": "INFO", "msg": "healthcheck payments ok 21ms"}
+{"ts": "T-6", "level": "INFO", "msg": "request served /api/cart 200 41ms"}
+{"ts": "T-4", "level": "DEBUG", "msg": "route matched /api/orders -> orders"}
+{"ts": "T-2", "level": "INFO", "msg": "request served /api/pay 200 190ms"}

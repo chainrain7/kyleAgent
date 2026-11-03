@@ -89,6 +89,8 @@ class SimEnv:
         if env_dir.exists():
             shutil.rmtree(env_dir)
         shutil.copytree(_BASELINE_DIR, env_dir)
+        # 防御:logs 目录在仓库中被 *.log 全局忽略,新 checkout 可能缺失
+        (env_dir / "logs").mkdir(parents=True, exist_ok=True)
         env = cls(env_dir)
         env._materialize_timestamps()
         logger.info("sim env reset at %s", env_dir)

@@ -19,3 +19,6 @@ workspace/
 evals/results/2*
 
 evals/results/oncall-record-*
+
+# OnCallCopilot 模拟环境基线日志是测试数据,必须入库
+!src/kyle_agent/oncall/baseline/logs/*.log

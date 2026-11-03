@@ -1,0 +1,6 @@
+{"ts": "T-12", "level": "INFO", "msg": "order created id=88214 total=129.00"}
+{"ts": "T-10", "level": "INFO", "msg": "cache hit ratio 99.2% (last 5m)"}
+{"ts": "T-8", "level": "DEBUG", "msg": "db query orders list 18ms"}
+{"ts": "T-6", "level": "INFO", "msg": "order created id=88215 total=59.50"}
+{"ts": "T-4", "level": "INFO", "msg": "consumer lag 0 msgs"}
+{"ts": "T-2", "level": "INFO", "msg": "order created id=88216 total=248.00"}

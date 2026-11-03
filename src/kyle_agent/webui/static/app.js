@@ -67,12 +67,34 @@ function setConn(stateName, label) {
   $("#connText").textContent = label;
 }
 
+// 会话状态区:状态胶囊 + 底部 session id(截断展示)
 function setSessionUI() {
   $("#sessionId").textContent = state.sessionId || "—";
-  $("#sessionState").textContent = state.running ? "running" : (state.sessionId ? "waiting_for_input" : "—");
-  $("#lastRun").textContent = state.lastRunId || "—";
+  const pill = $("#sessionState");
+  const label = $("#sessionStateText");
+  if (state.running) {
+    pill.className = "state-pill running";
+    label.textContent = "running";
+  } else if (state.sessionId) {
+    pill.className = "state-pill waiting";
+    label.textContent = "waiting_for_input";
+  } else {
+    pill.className = "state-pill waiting";
+    label.textContent = "—";
+  }
   $("#btnCompact").disabled = !state.sessionId || state.running;
   $("#btnClose").disabled = !state.sessionId;
+}
+
+// hero 问候行:日期 + 时段(值班台的"交接时间"感)
+function setHeroGreet() {
+  const now = new Date();
+  const week = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][now.getDay()];
+  const h = now.getHours();
+  const slot = h < 5 ? "凌晨" : h < 12 ? "早上" : h < 18 ? "下午" : "晚上";
+  const pad = (n) => String(n).padStart(2, "0");
+  $("#heroGreet").textContent =
+    `${now.getMonth() + 1}月${now.getDate()}日 ${week} · ${slot}好 · ${pad(h)}:${pad(now.getMinutes())}`;
 }
 
 // 极简 Markdown:标题/粗斜体/行内代码/围栏/列表/链接(顺序敏感)
@@ -230,7 +252,7 @@ function permCard(e) {
     ["n", "deny_once", "拒绝"], ["d", "always_deny", "始终拒绝"],
   ];
   for (const [key, decision, label] of choices) {
-    const b = el("button", "perm-btn");
+    const b = el("button", "perm-btn" + (decision === "allow_once" ? " primary" : ""));
     b.appendChild(el("kbd", null, key));
     b.appendChild(el("span", null, label));
     b.addEventListener("click", () => respondPermission(e.tool_use_id, decision));
@@ -574,7 +596,7 @@ $("#btnClose").addEventListener("click", async () => {
   try { await send("session.close", { session_id: state.sessionId }); }
   catch (err) { toast(err.message || String(err)); }
 });
-document.querySelectorAll(".chip-btn").forEach((b) =>
+document.querySelectorAll(".hero-card").forEach((b) =>
   b.addEventListener("click", () => {
     $("#input").value = b.dataset.prompt;
     autoResize();
@@ -584,4 +606,5 @@ document.querySelectorAll(".chip-btn").forEach((b) =>
 
 /* ── 启动 ───────────────────────────────────────── */
 $("#coreAddr").textContent = `${location.hostname === "" ? "127.0.0.1" : location.hostname}:7437`;
+setHeroGreet();
 connect();

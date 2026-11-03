@@ -52,10 +52,15 @@ function setOncallVisible(v) {
 function renderAlerts(alerts) {
   const list = document.getElementById("alertList");
   const firing = alerts.filter((a) => a.status === "firing");
-  document.getElementById("alertCount").textContent = String(firing.length);
+  const count = document.getElementById("alertCount");
+  count.textContent = String(firing.length);
+  count.classList.toggle("zero", firing.length === 0);
   if (!alerts.length) {
     list.innerHTML = "";
-    list.appendChild(el("div", "sysline", "无告警 · 环境健康"));
+    const empty = el("div", "side-empty ok");
+    empty.appendChild(el("span", "sdot"));
+    empty.appendChild(el("span", null, "环境平稳 · 无活跃告警"));
+    list.appendChild(empty);
     return;
   }
   const ordered = [...firing, ...alerts.filter((a) => a.status !== "firing")];
@@ -65,10 +70,11 @@ function renderAlerts(alerts) {
     const row1 = el("div", "row1");
     row1.appendChild(el("span", "dot"));
     row1.appendChild(el("span", null, a.status.toUpperCase()));
+    row1.appendChild(el("span", "sev-badge", a.severity));
     const time = el("span", "stat", String(a.ts || "").slice(11, 16));
     row1.appendChild(time);
     card.appendChild(row1);
-    card.appendChild(el("div", "svc", `${a.service} · ${a.severity}`));
+    card.appendChild(el("div", "svc", a.service));
     card.appendChild(el("div", "sum", a.summary || ""));
     card.addEventListener("click", () => fillDiagnosis(a));
     list.appendChild(card);
@@ -120,7 +126,7 @@ function renderReports(reports) {
   const list = document.getElementById("reportList");
   if (!reports.length) {
     list.innerHTML = "";
-    list.appendChild(el("div", "sysline", "尚无报告 · 完成一次诊断后生成"));
+    list.appendChild(el("div", "side-empty", "尚无报告 · 完成一次诊断后生成"));
     return;
   }
   list.innerHTML = "";
@@ -189,6 +195,35 @@ async function doInject(faultId) {
   }
 }
 
+// 顶栏环境徽章 + hero 环境摘要行(与侧栏同源数据)
+function renderEnvSummary(services, alerts) {
+  const names = Object.keys(services || {});
+  const down = names.filter((n) => services[n].status !== "running");
+  const firing = (alerts || []).filter((a) => a.status === "firing");
+
+  const chip = document.getElementById("envChip");
+  const chipText = document.getElementById("envChipText");
+  chip.classList.remove("hidden");
+  chip.classList.toggle("alerting", firing.length > 0 || down.length > 0);
+  chipText.textContent = firing.length > 0
+    ? `${firing.length} 条活跃告警`
+    : down.length > 0 ? `${down.length} 个服务异常` : "环境平稳";
+
+  const hero = document.getElementById("heroEnv");
+  const heroText = document.getElementById("heroEnvText");
+  hero.classList.remove("hidden");
+  if (firing.length > 0) {
+    hero.className = "hero-env alerting";
+    heroText.innerHTML = `<b>${firing.length} 条活跃告警</b> — ${firing[0].service} ${firing[0].summary || ""}`;
+  } else if (down.length > 0) {
+    hero.className = "hero-env alerting";
+    heroText.innerHTML = `<b>${down.length} 个服务异常</b> — ${down.join(", ")}`;
+  } else {
+    hero.className = "hero-env ok";
+    heroText.innerHTML = `<b>${names.length} 个服务</b>全部运行中 · 0 活跃告警 · 环境平稳`;
+  }
+}
+
 // 轮询 /api/state 更新面板
 async function pollOncall() {
   try {
@@ -198,6 +233,11 @@ async function pollOncall() {
     if (!data.available) {
       oc.available = false;
       if (wasAvailable) setOncallVisible(false);
+      // 演练环境未初始化:hero 退回通用助手文案,顶栏徽章隐藏
+      const hero = document.getElementById("heroEnv");
+      hero.className = "hero-env";
+      document.getElementById("heroEnvText").textContent = "演练环境未初始化 · 通用助手模式";
+      document.getElementById("envChip").classList.add("hidden");
       return;
     }
     oc.available = true;
@@ -207,8 +247,9 @@ async function pollOncall() {
     oc.scenarios = data.scenarios || [];
     oc.menuBuilt = false; // 场景清单可能更新
     setOncallVisible(true);
+    renderEnvSummary(oc.services, data.alerts || []);
     renderAlerts(data.alerts || []);
-    renderHealth(data.services || {});
+    renderHealth(oc.services);
     renderReports(data.reports || []);
   } catch { /* 桥接不可达时静默,下轮重试 */ }
 }

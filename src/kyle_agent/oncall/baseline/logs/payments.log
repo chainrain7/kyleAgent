@@ -1,0 +1,6 @@
+{"ts": "T-12", "level": "INFO", "msg": "payment ok id=pay_55231 amount=129.00 risk=pass"}
+{"ts": "T-10", "level": "INFO", "msg": "risk-svc call 45ms pass"}
+{"ts": "T-8", "level": "INFO", "msg": "payment ok id=pay_55232 amount=59.50 risk=pass"}
+{"ts": "T-6", "level": "DEBUG", "msg": "conn pool inuse=6/50"}
+{"ts": "T-4", "level": "INFO", "msg": "payment ok id=pay_55233 amount=248.00 risk=pass"}
+{"ts": "T-2", "level": "INFO", "msg": "payments-db query 22ms"}

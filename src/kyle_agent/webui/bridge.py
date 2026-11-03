@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -31,6 +31,15 @@ _STATIC_DIR = Path(__file__).parent / "static"
 _MAX_LINE_BYTES = 64 * 1024 * 1024  # 与 socket_server/socket_client 一致
 
 app = FastAPI(title="kyleAgent Web UI", docs_url=None, redoc_url=None)
+
+
+# 静态资源禁止启发式缓存:开发迭代时浏览器必须向服务端 revalidate(ETag 仍可 304)
+@app.middleware("http")
+async def no_stale_static(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 # 返回 daemon 地址(环境变量优先,回落默认)
