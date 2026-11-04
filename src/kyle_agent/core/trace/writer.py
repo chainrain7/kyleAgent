@@ -48,7 +48,7 @@ class TraceWriter:
 
     # 持续从队列读取 record 并追加写入文件;收到哨兵 None 时退出
     async def _drain(self) -> None:
-        with open(self._path, "a") as f:
+        with open(self._path, "a", encoding="utf-8") as f:
             while True:
                 record = await self._queue.get()
                 try:
