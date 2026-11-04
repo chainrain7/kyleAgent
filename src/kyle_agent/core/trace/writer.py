@@ -33,7 +33,7 @@ class TraceWriter:
         self._task = None
         try:
             await asyncio.wait_for(asyncio.shield(task), timeout=_STOP_TIMEOUT_S)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             task.cancel()
             try:
                 await task
