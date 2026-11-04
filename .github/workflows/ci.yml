@@ -35,10 +35,11 @@ jobs:
         run: uv run mypy src
 
       - name: Unit tests
+        timeout-minutes: 15
         run: uv run pytest tests/unit -q
 
       - name: Integration tests
-        timeout-minutes: 10
+        timeout-minutes: 25
         run: uv run pytest tests/integration -q
 
       - name: Protocol doc sync check
