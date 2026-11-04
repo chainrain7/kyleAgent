@@ -34,10 +34,6 @@ webui = [
     "websockets>=12",
 ]
 
-[[tool.uv.index]]
-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
-default = true
-
 # ---- Hatch：打 wheel 时从 src 布局收录包 ----
 [tool.hatch.build.targets.wheel]
 packages = ["src/kyle_agent"] # 源码在 src/kyle_agent
