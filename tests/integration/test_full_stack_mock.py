@@ -91,6 +91,15 @@ def _client(port: int) -> SocketClient:
 # 设计：mock LLM 按对话形状返回确定性响应；审批在事件回调内用 create_task 异步回复
 #       （不能内联 await，否则读循环被 dispatch 阻塞造成自死锁）；断言覆盖事件序列、
 #       thread 历史、compact 重写、events.jsonl 与 trace 落盘
+# 等待 run.finished 事件出现(reader 分发有时序滞后,CI 慢机器尤甚)
+async def wait_run_finished(events: list[dict], timeout_s: float = 20) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline and not any(
+        e.get("type") == "run.finished" for e in events
+    ):
+        await asyncio.sleep(0.1)
+
+
 async def test_full_stack_permission_allow_and_compact(mock_stack: dict[str, object]) -> None:
     port = int(mock_stack["core_port"])
     tmp = Path(str(mock_stack["tmp"]))
@@ -124,6 +133,7 @@ async def test_full_stack_permission_allow_and_compact(mock_stack: dict[str, obj
     )
     run_id = str(send_result["run_id"])
     assert time.monotonic() - t0 < 60
+    await wait_run_finished(events)
 
     types = [e["type"] for e in events]
     assert "permission.requested" in types
@@ -195,6 +205,7 @@ async def test_full_stack_permission_deny(mock_stack: dict[str, object]) -> None
     await client.send_command(
         "session.send_message", {"session_id": sid, "content": "run echo"}
     )
+    await wait_run_finished(events)
 
     types = [e["type"] for e in events]
     failed = [e for e in events if e["type"] == "tool.call_failed"]
@@ -257,6 +268,9 @@ async def test_replay_and_broadcast(mock_stack: dict[str, object]) -> None:
     await a.send_command(
         "session.send_message", {"session_id": sid, "content": "run echo again"}
     )
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline and len(b_events) <= before:
+        await asyncio.sleep(0.1)
     assert len(b_events) > before
 
     for task, c in ((loop_a, a), (loop_b, b)):

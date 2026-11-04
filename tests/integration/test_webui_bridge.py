@@ -103,30 +103,32 @@ async def test_websocket_relay_end_to_end(webui_stack: dict[str, object]) -> Non
     async with ws_client.connect(f"ws://127.0.0.1:{ui_port}/ws",
                                  max_size=64 * 1024 * 1024) as ws:
         events: list[dict] = []
-        # 事件收集器:后台任务持续读
-        async def reader() -> None:
+        # 响应表 + 单一消息泵:websockets 禁止同连接并发 recv,
+        # 所有消息由泵分发,rpc 通过 Future 等待自己的响应
+        responses: dict[str, asyncio.Future] = {}
+
+        async def pump() -> None:
             while True:
                 raw = await ws.recv()
                 msg = json.loads(raw)
                 if msg.get("kind") == "event":
                     events.append(msg["event"])
+                elif msg.get("id") in responses:
+                    fut = responses.pop(msg["id"])
+                    if not fut.done():
+                        fut.set_result(msg)
 
-        read_task = asyncio.create_task(reader())
+        pump_task = asyncio.create_task(pump())
 
-        async def rpc(method: str, params: dict, wait_s: float = 30) -> dict:
-            await ws.send(json.dumps({"jsonrpc": "2.0", "id": method, "method": method,
-                                      "params": params}))
-            deadline = time.monotonic() + wait_s
-            while time.monotonic() < deadline:
-                raw = await asyncio.wait_for(ws.recv(), timeout=5)
-                msg = json.loads(raw)
-                if msg.get("id") == method:
-                    if "error" in msg:
-                        raise RuntimeError(f"{method}: {msg['error']}")
-                    return msg.get("result") or {}
-                if msg.get("kind") == "event":
-                    events.append(msg["event"])
-            raise TimeoutError(method)
+        async def rpc(method: str, params: dict, wait_s: float = 60) -> dict:
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
+            responses[method] = fut
+            await ws.send(json.dumps({"jsonrpc": "2.0", "id": method,
+                                      "method": method, "params": params}))
+            msg = await asyncio.wait_for(fut, timeout=wait_s)
+            if "error" in msg:
+                raise RuntimeError(f"{method}: {msg['error']}")
+            return msg.get("result") or {}
 
         pong = await rpc("core.ping", {"client": "webui-e2e"})
         assert pong["server_version"]
@@ -164,9 +166,9 @@ async def test_websocket_relay_end_to_end(webui_stack: dict[str, object]) -> Non
         assert "kyle-e2e" in str(tool_ok.get("output", ""))
         assert result.get("run_id")
 
-        read_task.cancel()
+        pump_task.cancel()
         try:
-            await read_task
+            await pump_task
         except (asyncio.CancelledError, Exception):
             pass
 
