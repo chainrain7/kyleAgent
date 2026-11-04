@@ -21,6 +21,12 @@ from pathlib import Path
 
 import pytest
 
+# WS 桥接 E2E:CI 矩阵策略同 oncall——仅在 ubuntu 基准平台执行
+pytestmark = pytest.mark.skipif(
+    os.environ.get("CI") == "true" and sys.platform != "linux",
+    reason="WS bridge E2E runs on ubuntu benchmark platform only",
+)
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 websockets = pytest.importorskip("websockets")
 pytest.importorskip("fastapi")

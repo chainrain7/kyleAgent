@@ -21,6 +21,12 @@ import pytest
 
 from kyle_agent.core.transport.socket_client import IpcError, SocketClient
 
+# 全链路套件:CI 矩阵策略同 oncall——仅在 ubuntu 基准平台执行
+pytestmark = pytest.mark.skipif(
+    os.environ.get("CI") == "true" and sys.platform != "linux",
+    reason="full-stack suite runs on ubuntu benchmark platform only",
+)
+
 REPO_ROOT = Path(__file__).parent.parent.parent
 
 
