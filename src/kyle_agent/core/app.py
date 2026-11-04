@@ -246,10 +246,11 @@ class CoreApp:
         sessions_root = Path("~/.kyle/sessions").expanduser()
         store = SessionStore(sessions_root)
         assert self._config is not None
+        # LLM provider 惰性构建:daemon 无 API Key 也能启动(ping/会话管理/审计可用),
+        # 首次需要 LLM 的操作(run/compact)才构建并暴露配置错误
         from kyle_agent.core.llm.factory import build_provider
         from kyle_agent.core.llm.router import build_router
 
-        compact_provider = build_provider(self._config.llm)
         compact_router = build_router(self._config.llm)
 
         self._mcp_manager = McpServerManager()
@@ -269,7 +270,7 @@ class CoreApp:
                 mcp_manager=self._mcp_manager,
             ),
             bus=self._bus,
-            provider=compact_provider,
+            provider_factory=lambda: build_provider(runtime_config.llm),
             router=compact_router,
         )
 

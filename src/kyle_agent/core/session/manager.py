@@ -39,6 +39,8 @@ def _now() -> str:
 
 class SessionManager:
     # 初始化会话管理器，接入文件存储、runner 工厂、事件总线、可选 LLM provider 与模型路由器
+    # provider_factory 惰性构建 provider——daemon 无 API Key 也必须能启动,
+    # 只在真正需要 LLM(手动压缩)时报"provider 不可用"而非启动失败
     def __init__(
         self,
         store: SessionStore,
@@ -46,11 +48,13 @@ class SessionManager:
         bus: EventBus,
         provider: LLMProvider | None = None,
         router: ModelRouter | None = None,
+        provider_factory: Callable[[], LLMProvider] | None = None,
     ) -> None:
         self._store = store
         self._runner_factory = runner_factory
         self._bus = bus
         self._provider = provider
+        self._provider_factory = provider_factory
         self._router = router
         self._sessions: dict[str, Session] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -169,7 +173,16 @@ class SessionManager:
         lock = self._locks[sid]
         if lock.locked():
             raise HandlerError(SESSION_BUSY, "session busy")
-        if self._provider is None:
+        # 惰性构建 provider:无 Key 环境 daemon 可启动,压缩时才暴露配置问题
+        provider = self._provider
+        if provider is None and self._provider_factory is not None:
+            try:
+                provider = self._provider_factory()
+            except Exception as exc:
+                raise HandlerError(
+                    -32020, f"provider unavailable for compaction: {exc}"
+                ) from exc
+        if provider is None:
             raise HandlerError(-32020, "provider not available for compaction")
         async with lock:
             from kyle_agent.core.bus.commands import SessionCompactResult
@@ -178,7 +191,7 @@ class SessionManager:
             session_dir = self._store.session_dir(sid)
 # 手动 /compact 保持全量替换;增量保留轮数仅自动压缩按配置启用
             compactor = Compactor(self._bus, session_dir, sid, router=self._router)
-            result = await compactor.compact_messages(messages, self._provider, focus=focus)
+            result = await compactor.compact_messages(messages, provider, focus=focus)
             if result is None:
                 raise HandlerError(-32021, "compaction failed or not beneficial")
             self._store.write_compacted(sid, [
