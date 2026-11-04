@@ -111,6 +111,16 @@ Beyond the staged S0–S7 base, the runtime now ships:
 
 Docs rule: every functional change updates this file and README together.
 
+
+### Git network operations are auto-proxied (machine setup)
+
+`~/bin/git` wraps the real git: `push/fetch/pull/ls-remote` auto-start
+Clash Verge (D:/software/Clash Verge) when local proxy 7897 is down, then wait
+until ready. Do NOT add `-c http.proxy=` bypasses — direct github.com access
+is flaky on this machine; going through the proxy is the reliable path.
+Generic wrapper for any command: `with-proxy.sh <cmd...>` (also in ~/bin).
+Clash Verge is in the user Startup folder (proxy comes up at boot).
+
 ### Protocol layer (`src/kyle_agent/core/bus/`)
 
 All IPC messages are typed pydantic v2 models with a **discriminated union on the `type` field**. This is the contract boundary — adding a new command or event means adding a new model class to `commands.py` or `events.py` and extending the `Command`/`Event` union.
