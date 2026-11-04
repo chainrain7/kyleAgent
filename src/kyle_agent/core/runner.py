@@ -291,6 +291,15 @@ class AgentRunner:
                 cancelled = True
                 if not context.is_done():
                     context.mark_failed("cancelled")
+            except SystemExit as exc:
+                # SystemExit 是 BaseException(如无 API Key 时 build_provider 的
+                # fail-fast)——必须在此拦下转为结构化失败,否则会逃出 handler
+                # 把整个 daemon 进程带崩(其余会话/客户端全部受牵连)
+                logging.getLogger(__name__).error(
+                    "agent run aborted run_id=%s step=%d: %s", run_id, context.step, exc
+                )
+                if not context.is_done():
+                    context.mark_failed("provider_error")
             except Exception:
                 logging.getLogger(__name__).exception(
                     "agent run failed run_id=%s step=%d", run_id, context.step

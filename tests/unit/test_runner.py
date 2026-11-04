@@ -407,3 +407,20 @@ async def test_none_tool_whitelist_registers_tools(tmp_path: Path) -> None:
     names = [str(s.get("name")) for s in provider.tool_schemas]
     assert "read_file" in names
     assert "bash" in names
+
+
+# 功能:无 API Key 时 agent run 转为 provider_error 结构化失败,而非 SystemExit 逃逸带崩 daemon
+# 设计:monkeypatch 删除 ANTHROPIC_API_KEY 且不注入 provider → build_provider 的
+#       fail-fast SystemExit 必须被 runner 拦下(CI 集成测试实测:逃逸会杀掉整个
+#       daemon,后续所有客户端重连 ConnectionRefused);断言 outcome.failed + daemon 语义
+async def test_run_without_api_key_fails_structured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
+    cfg = _config()
+    cfg.memory.enabled = False
+    runner = AgentRunner(cfg, runs_dir=tmp_path / "runs")
+    outcome = await runner.run_and_capture("goal")
+    assert outcome.status == "failed"
+    assert outcome.reason == "provider_error"
