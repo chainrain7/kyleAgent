@@ -99,7 +99,12 @@ Beyond the staged S0–S7 base, the runtime now ships:
   CI installs `--extra webui`; E2E coverage in `tests/integration/test_webui_bridge.py`.
   Design system v2 "control-room": neutral graphite dark, white is the only action
   color (primary buttons/focus ring/send), status colors are semantic only
-  (green=healthy, amber=approval, red=alert). Bridge serves `/` and `/static` with
+  (green=healthy, amber=approval, red=alert). Light/dark themes: `:root` holds dark
+  defaults, `:root[data-theme="light"]` overrides; all status tints derive via
+  `color-mix(var(--ok/--warn/--err/--info))` so themes adapt automatically. Toggle in
+  topbar persists to localStorage (`kyle.theme`), first visit follows
+  `prefers-color-scheme`; an inline `<head>` script sets `data-theme` before CSS to
+  avoid flash. Bridge serves `/` and `/static` with
   `Cache-Control: no-cache` (browsers must revalidate after asset changes).
   Frontend `mdRender` supports headings/lists/fences/links and pipe tables (report
   overlay wraps content in `.assistant-text` to reuse table styles).

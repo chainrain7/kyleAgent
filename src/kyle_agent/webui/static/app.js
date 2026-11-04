@@ -27,6 +27,20 @@ const state = {
   retryTimer: null,
 };
 
+/* ── 主题切换(亮/暗)────────────────────────────── */
+
+// 写入 html[data-theme] 驱动 CSS 变量切换,并持久化到 localStorage
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("kyle.theme", theme); } catch { /* 隐私模式等场景静默 */ }
+}
+
+// 点击切换:当前亮→切暗,否则切亮(head 预设脚本已保证初始值存在)
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  applyTheme(cur === "light" ? "dark" : "light");
+}
+
 /* ── 小工具 ─────────────────────────────────────── */
 
 function el(tag, cls, text) {
@@ -267,7 +281,7 @@ function permCard(e) {
   const impact = typeof impactOf === "function" ? impactOf(e.tool_name, e.params) : null;
   if (impact) {
     const tip = el("div", "impact");
-    tip.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5c04e" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
+    tip.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex:none;margin-top:2px"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>';
     const box = el("div");
     box.innerHTML = impact;
     tip.appendChild(box);
@@ -633,5 +647,6 @@ document.querySelectorAll(".hero-card").forEach((b) =>
 
 /* ── 启动 ───────────────────────────────────────── */
 $("#coreAddr").textContent = `${location.hostname === "" ? "127.0.0.1" : location.hostname}:7437`;
+$("#themeToggle").addEventListener("click", toggleTheme);
 setHeroGreet();
 connect();
