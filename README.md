@@ -49,6 +49,7 @@ uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
 - **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
 - **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
 - **评测体系**：10 个确定性任务集（终态断言、不依赖 LLM 打分）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
+- **向量 RAG 检索**：`core/rag/` 通用管道（分片→嵌入→召回→重排，零第三方依赖）；确定性哈希嵌入（blake2b 特征哈希 + 库级 IDF + sublinear tf，跨进程逐位一致）或 OpenAI 兼容嵌入端点（磁盘缓存）；`runbook_search` 工具三模式（keyword/vector/hybrid）输出形状一致，36 条标注查询离线评测（`scripts/eval_rag.py`），无匹配按词面证据判定
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
 - **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
 - **durable run**：每步快照 run_state.json，daemon 崩溃重启后自动从断点步续跑（工具 at-least-once，终态快照不重复恢复）
@@ -153,6 +154,18 @@ auto_threshold     = 0.0    # 上下文水位触发自动压缩的阈值（0–1
 tool_result_limit  = 8000   # tool_result 截断触发字符数
 tool_result_keep   = 4000   # 截断后保留的前缀字符数
 
+[oncall]
+enabled        = true
+env_dir        = "~/.kyle/oncall/env"
+runbook_search = "keyword"  # "keyword" | "vector" | "hybrid"（runbook 检索模式）
+
+[rag]
+embedding_provider = "local"  # "local"（确定性哈希嵌入）| "openai"（OpenAI 兼容端点）
+embedding_base_url = ""       # openai 模式必填，如 https://api.openai.com/v1
+embedding_model    = ""       # openai 模式必填
+embedding_api_key  = ""       # 缺省回退读 KYLE_RAG_EMBEDDING_API_KEY
+cache_dir          = "~/.kyle/cache/embeddings"  # API 嵌入磁盘缓存
+
 [[mcp.servers]]             # 数组，可声明多个 MCP server
 name = "filesystem"
 transport = "stdio"         # "stdio" | "tcp"
@@ -190,6 +203,12 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `memory.top_k` | int | `3` | — |
 | `oncall.enabled` | bool | `false` | `KYLE_ONCALL_ENABLED` |
 | `oncall.env_dir` | str | `~/.kyle/oncall/env` | `KYLE_ONCALL_ENV` |
+| `oncall.runbook_search` | str | `keyword` | `KYLE_ONCALL_RUNBOOK_SEARCH` |
+| `rag.embedding_provider` | str | `local` | `KYLE_RAG_EMBEDDING_PROVIDER` |
+| `rag.embedding_base_url` | str | `` | `KYLE_RAG_EMBEDDING_BASE_URL` |
+| `rag.embedding_model` | str | `` | `KYLE_RAG_EMBEDDING_MODEL` |
+| `rag.embedding_api_key` | str | `` | `KYLE_RAG_EMBEDDING_API_KEY` |
+| `rag.cache_dir` | str | `~/.kyle/cache/embeddings` | `KYLE_RAG_EMBEDDING_CACHE_DIR` |
 
 另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 Anthropic 后端的必要凭据；`llm.provider = "openai"` 时改用 `OPENAI_API_KEY`（可选 `OPENAI_BASE_URL`，如 `https://api.deepseek.com/v1`）。`web_search` 的 JSON 后端用 `KYLE_SEARCH_API_KEY` + `KYLE_SEARCH_ENDPOINT` 配置，不配置则使用免 key 的 DuckDuckGo 后端。
 
@@ -429,6 +448,7 @@ kyleCode/
 │   │   ├── agents/     #   Subagent 角色配置加载与内建角色
 │   │   ├── subagent/   #   spawn_agent / agent_result 与后台任务注册表
 │   │   ├── mcp/        #   MCP 客户端、工具包装、server 生命周期管理
+│   │   ├── rag/        #   向量 RAG 管道(分片/嵌入/向量库/重排)
 │   │   ├── llm/        #   Anthropic Provider（流式 + prompt caching）
 │   │   ├── events/     #   EventBus 与 events.jsonl 写入
 │   │   └── trace/      #   TraceWriter / TraceRecord / LLM 追踪代理
@@ -464,6 +484,59 @@ kyleCode/
 设计文档:[docs/product/PRD.md](docs/product/PRD.md) ·
 [docs/design/tech-design.md](docs/design/tech-design.md) ·
 [docs/product/mockups.md](docs/product/mockups.md)
+
+## 向量 RAG 检索
+
+`runbook_search` 工具背后是一套通用 RAG 管道(`src/kyle_agent/core/rag/`,
+**零第三方依赖**,纯标准库 + 已有 httpx):分片 → 嵌入 → 召回 → 重排。
+
+- **分片** `chunk_markdown`:按 ATX 标题切 chunk(标题保留在内容内),
+  单 chunk ≤800 字符(超长段落二次切分),<50 字符碎块向后合并,
+  `section_path` 记录标题层级路径
+- **嵌入**:`HashingEmbedder`(默认)——blake2b 特征哈希 + 库级 IDF 加权 +
+  sublinear tf,跨进程逐位确定(**禁用内建 hash()**,其每进程加盐不定);
+  `OpenAICompatEmbedder`(可选)——OpenAI 兼容 `/embeddings` 端点,
+  磁盘缓存(blake2b(模型+文本) 命中即零网络,首次之后离线可复现)
+- **召回** `VectorStore`:余弦相似度线性扫描(库 <100 chunk,ANN 索引成本远超收益)
+- **重排** `rerank`:`0.6×余弦 + 0.3×IDF 加权 Jaccard + 0.1×标题命中`
+- **无匹配判定用词面证据**(query 与候选的真实特征交集),不用余弦绝对阈值——
+  实测哈希桶噪声 cos 可达 0.13+,弱真命中会被压过,而桶碰撞无法伪造特征交集
+
+`oncall.runbook_search` 三模式输出形状完全一致(仍是 top-3 篇 runbook 全文),
+只改"选哪 3 篇"的逻辑;`keyword` 模式与改造前逐字节一致(测试锁定)。
+
+检索质量评测(`uv run python scripts/eval_rag.py`,离线零 Key 真跑,
+标注集 [evals/rag_queries.json](evals/rag_queries.json):9 篇 × 4 条,
+含字面查询与改写查询两类):
+
+### 全量(n=36)
+
+| 模式 | Recall@1 | Recall@3 | MRR |
+|---|---|---|---|
+| keyword | 0.778 | **0.972** | 0.861 |
+| vector | 0.833 | 0.889 | 0.861 |
+| hybrid | **0.889** | 0.944 | **0.917** |
+
+### 字面查询 literal(n=18)
+
+| 模式 | Recall@1 | Recall@3 | MRR |
+|---|---|---|---|
+| keyword | 0.944 | 1.000 | 0.972 |
+| vector | 1.000 | 1.000 | 1.000 |
+| hybrid | 1.000 | 1.000 | 1.000 |
+
+### 改写查询 paraphrase(n=18,不含核心识别关键词)
+
+| 模式 | Recall@1 | Recall@3 | MRR |
+|---|---|---|---|
+| keyword | 0.611 | **0.944** | 0.750 |
+| vector | 0.667 | 0.778 | 0.722 |
+| hybrid | **0.778** | 0.889 | **0.833** |
+
+默认值决策(门禁规则:hybrid 需 R@3 ≥ keyword 且回放全绿):hybrid 的
+Recall@3(0.944)< keyword(0.972),**默认回退 `keyword`**;hybrid 在
+Recall@1(+0.111)、MRR(+0.056)与字面/改写两个维度全面占优,
+作为 opt-in(`oncall.runbook_search = "hybrid"`)保留。
 
 ## 开发阶段
 

@@ -13,7 +13,6 @@ fault_id 经 BY_ID 查得其 expected_actions,与本动作(tool+service)
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -261,35 +260,50 @@ class RunbookSearchTool(BaseTool):
         "required": ["query"],
     }
 
-    # 绑定环境目录(runbook 只读包内,不需 env;保持工具构造统一)
-    def __init__(self, env_dir: Path) -> None:
+    # 绑定环境目录与配置(config 缺省时首次 invoke 惰性加载,避免启动期急切构建)
+    def __init__(self, env_dir: Path, config: Any | None = None) -> None:
         self._env_dir = env_dir
+        self._config = config
 
-    # 关键词打分检索 runbook(库规模 <20 篇,全文扫描即可,无需 FTS 索引)
+    # 解析检索模式与嵌入器(local 哈希嵌入零依赖;openai 按配置构造,带磁盘缓存)
+    # 返回 (模式, 索引);索引为 rag.pipeline.RunbookIndex(惰性 import,注解用 Any)
+    def _resolve_search(self) -> tuple[str, Any]:
+        from kyle_agent.core.rag.embeddings import OpenAICompatEmbedder
+        from kyle_agent.core.rag.pipeline import RunbookIndex, local_runbook_index
+
+        cfg = self._config
+        if cfg is None:
+            from kyle_agent.core.config import get_config
+
+            cfg = get_config()
+        mode = cfg.oncall.runbook_search
+        if cfg.rag.embedding_provider == "openai":
+            embedder = OpenAICompatEmbedder(
+                cfg.rag.embedding_base_url,
+                cfg.rag.embedding_model,
+                api_key=cfg.rag.embedding_api_key or None,
+                cache_dir=cfg.rag.cache_dir,
+            )
+            index = RunbookIndex.get(_RUNBOOK_DIR, embedder)
+        else:
+            index = local_runbook_index(_RUNBOOK_DIR)
+        return mode, index
+
+    # 三模式检索 runbook(输出形状统一:top-3 篇全文,与改造前一致)
     async def invoke(self, params: dict[str, object]) -> ToolResult:
         p = RunbookSearchParams.model_validate(params)
-        terms = [w for w in re.split(r"[\s,，]+", p.query.lower()) if w]
-        scored: list[tuple[float, str]] = []
-        for path in sorted(_RUNBOOK_DIR.glob("*.md")):
-            text = path.read_text(encoding="utf-8")
-            lower = text.lower()
-            title = path.stem.replace("-", " ")
-            score = 0.0
-            for term in terms:
-                score += lower.count(term) * 1.0
-                if term in title:
-                    score += 5.0
-            if score > 0:
-                scored.append((score, text.strip()))
-        if not scored:
+        try:
+            mode, index = self._resolve_search()
+            chunks = index.search(p.query, mode=mode, top_k=3)
+        except ValueError as e:
+            return ToolResult(content=str(e), is_error=True, error_type="config_error")
+        if not chunks:
             available = [p2.stem for p2 in _RUNBOOK_DIR.glob("*.md")]
             return ToolResult(
                 content=f"no matching runbook. available: {available}"
             )
-        scored.sort(key=lambda x: -x[0])
-        top = scored[:3]
         return ToolResult(
-            content="\n\n---\n\n".join(t for _, t in top)
+            content="\n\n---\n\n".join(c.content for c in chunks)
         )
 
 
@@ -568,13 +582,13 @@ class SubmitDiagnosisTool(BaseTool):
 
 
 # 构建全部领域工具(注册入口,runner 在 [oncall] enabled 时调用)
-def build_oncall_tools(env_dir: Path) -> list[BaseTool]:
+def build_oncall_tools(env_dir: Path, config: Any | None = None) -> list[BaseTool]:
     return [
         AlertsListTool(env_dir),
         ServiceStatusTool(env_dir),
         LogsQueryTool(env_dir),
         MetricsQueryTool(env_dir),
-        RunbookSearchTool(env_dir),
+        RunbookSearchTool(env_dir, config),
         ServiceRestartTool(env_dir),
         ScaleUpTool(env_dir),
         LogCleanupTool(env_dir),

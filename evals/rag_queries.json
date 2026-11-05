@@ -1,0 +1,49 @@
+{
+  "description": "runbook 检索标注集:9 篇 × 4 条查询。kind=literal 字面查询(含 runbook 原词,关键词法应命中);kind=paraphrase 改写查询(不含核心识别关键词,仅含次级词面重叠,考察向量泛化)。命中判定:返回 top-3 全文所属 runbook 文件名 == target。",
+  "queries": [
+    {"query": "mismatch 金额 计算错误", "target": "business-bug.md", "kind": "literal"},
+    {"query": "业务 数据 少量 错误 发布 相关", "target": "business-bug.md", "kind": "literal"},
+    {"query": "下单 结果 不对 但 性能 正常", "target": "business-bug.md", "kind": "paraphrase"},
+    {"query": "数值 对不上 怀疑 代码 bug 建议 回滚", "target": "business-bug.md", "kind": "paraphrase"},
+
+    {"query": "qps 激增 错误 超时 扩容", "target": "capacity-surge.md", "kind": "literal"},
+    {"query": "消费 积压 lag 增长 大促", "target": "capacity-surge.md", "kind": "literal"},
+    {"query": "瞬时 过载 请求 处理不过来", "target": "capacity-surge.md", "kind": "paraphrase"},
+    {"query": "访问 量 翻倍 系统 扛不住 该 加 机器", "target": "capacity-surge.md", "kind": "paraphrase"},
+
+    {"query": "证书 过期 续期", "target": "cert-expired.md", "kind": "literal"},
+    {"query": "tls 握手 失败 x509", "target": "cert-expired.md", "kind": "literal"},
+    {"query": "加密 通道 突然 中断 错误 抬升", "target": "cert-expired.md", "kind": "paraphrase"},
+    {"query": "安全 令牌 失效 需要 运维 换新", "target": "cert-expired.md", "kind": "paraphrase"},
+
+    {"query": "crashloop 配置 校验 失败", "target": "crashloop-config.md", "kind": "literal"},
+    {"query": "副本 减少 错误率 高 CrashLoopBackOff", "target": "crashloop-config.md", "kind": "literal"},
+    {"query": "服务 反复 重启 进程 起不来", "target": "crashloop-config.md", "kind": "paraphrase"},
+    {"query": "更新 版本 后 实例 一直 崩 检查 key", "target": "crashloop-config.md", "kind": "paraphrase"},
+
+    {"query": "依赖 服务 宕机 down", "target": "dep-down.md", "kind": "literal"},
+    {"query": "upstream timeout refused 告警", "target": "dep-down.md", "kind": "literal"},
+    {"query": "下游 挂了 调用方 报 5xx 飙升", "target": "dep-down.md", "kind": "paraphrase"},
+    {"query": "隔壁 服务 停摆 我 这边 全链路 报错", "target": "dep-down.md", "kind": "paraphrase"},
+
+    {"query": "磁盘 满 清理 日志", "target": "disk-full.md", "kind": "literal"},
+    {"query": "no space left on device 磁盘", "target": "disk-full.md", "kind": "literal"},
+    {"query": "日志 打 太多 空间 被 吃光", "target": "disk-full.md", "kind": "paraphrase"},
+    {"query": "存储 写满 服务 报错 需要清 盘", "target": "disk-full.md", "kind": "paraphrase"},
+
+    {"query": "外部 依赖 慢 超时", "target": "external-dependency.md", "kind": "literal"},
+    {"query": "db query slow too many connections", "target": "external-dependency.md", "kind": "literal"},
+    {"query": "第三方 接口 变慢 自身 状态 正常", "target": "external-dependency.md", "kind": "paraphrase"},
+    {"query": "上游 渠道 响应 缓慢 想找 供应商", "target": "external-dependency.md", "kind": "paraphrase"},
+
+    {"query": "内存 泄漏 OOM 持续 上涨", "target": "memory-leak.md", "kind": "literal"},
+    {"query": "memory_mb 越来越 高 接近 容器 上限", "target": "memory-leak.md", "kind": "literal"},
+    {"query": "进程 越跑 越吃 内存 直至 被 杀", "target": "memory-leak.md", "kind": "paraphrase"},
+    {"query": "占用 一路 涨 不 回落 重启 才能 缓解", "target": "memory-leak.md", "kind": "paraphrase"},
+
+    {"query": "连接池 耗尽 acquire 超时", "target": "pool-exhaust.md", "kind": "literal"},
+    {"query": "thread pool exhausted 大量 请求 超时", "target": "pool-exhaust.md", "kind": "literal"},
+    {"query": "请求 排队 拿不到 连接", "target": "pool-exhaust.md", "kind": "paraphrase"},
+    {"query": "db 借 不到 高峰 期 卡 住", "target": "pool-exhaust.md", "kind": "paraphrase"}
+  ]
+}

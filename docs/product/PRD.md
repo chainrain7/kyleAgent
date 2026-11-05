@@ -84,7 +84,7 @@
 **验收**:变更工具零审批执行次数 = 0(事件流断言);拒绝路径不中断 run。
 
 ### FR-04 runbook 知识检索(P0)
-内置 6~8 篇处置手册(内存泄漏/依赖宕机/磁盘满/连接池耗尽/证书过期/大促扩容),FTS5 全文检索注入诊断上下文;支持用户自增手册(放入 runbooks 目录即可)。
+内置 9 篇处置手册(内存泄漏/依赖宕机/磁盘满/连接池耗尽/证书过期/大促扩容等),支持用户自增手册(放入 runbooks 目录即可)。检索为三模式可切换的 RAG 管道(`oncall.runbook_search = keyword|vector|hybrid`,默认 keyword):keyword 为关键词打分;vector/hybrid 走通用 RAG 引擎(`core/rag/`,零第三方依赖)——按标题分片 → 确定性哈希嵌入(库级 IDF + sublinear tf)→ 余弦召回 → 混合重排,无匹配按词面证据判定;36 条标注查询离线实测 hybrid 的 Recall@1 0.889/MRR 0.917 优于 keyword(0.778/0.861),Recall@3 略低(0.944 vs 0.972),故默认 keyword、hybrid 作为 opt-in。
 **验收**:注入"内存泄漏"类告警时,检索结果含《内存泄漏处置》。
 
 ### FR-05 处置报告(P0)

@@ -115,7 +115,7 @@ class FaultScenario:
 | `service_status` | `service?` | ALLOW | 读 state.json(缺省=全部,含 externals 可达性) |
 | `logs_query` | `service, keyword?, level?, tail=50` | ALLOW | 读日志文件过滤,尾切 ≤80 行;keyword 命中行上下文 ±2 行 |
 | `metrics_query` | `service, metric?, window_min=15` | ALLOW | 读 CSV,返回 current/mean/max/趋势与突变点 |
-| `runbook_search` | `query` | ALLOW | 关键词打分检索 top-3(库<20 篇,免 FTS 索引开销) |
+| `runbook_search` | `query` | ALLOW | 三模式检索 top-3 全文(keyword/vector/hybrid,`oncall.runbook_search` 切换,默认 keyword):keyword=旧关键词打分;vector=哈希嵌入余弦(库级 IDF+sublinear tf);hybrid=余弦召回 8 篇→rerank(0.6 余弦+0.3 IDF 加权 Jaccard+0.1 标题命中)。无匹配按词面证据判定(特征交集为零,不用余弦阈值——桶噪声实测 0.13+ 会压过弱真命中)。36 条标注查询实测(离线):hybrid R@1 0.889/MRR 0.917 最优但 R@3 0.944<keyword 0.972,按门禁规则默认 keyword、hybrid opt-in |
 | `service_restart` | `service` | **ASK** | 剧本注入的故障标记清除→恢复段追加→审计日志;幂等(已 running 则提示) |
 | `scale_up` | `service, delta=1` | **ASK** | replicas+=delta,容量类故障恢复;上限 6 |
 | `log_cleanup` | `service` | **ASK** | 磁盘满类故障恢复(清日志尾段) |

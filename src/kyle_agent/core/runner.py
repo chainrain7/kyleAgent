@@ -143,7 +143,7 @@ class AgentRunner:
             from kyle_agent.oncall.tools import build_oncall_tools
 
             env_dir = Path(self._config.oncall.env_dir).expanduser()
-            for t in build_oncall_tools(env_dir):
+            for t in build_oncall_tools(env_dir, self._config):
                 if _ok(t.name):
                     registry.register(t)
 

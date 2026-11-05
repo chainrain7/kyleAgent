@@ -82,6 +82,21 @@ class OncallConfig:
     # OnCallCopilot 值班业务层:注册领域工具(诊断/处置)
     enabled: bool = False
     env_dir: str = "~/.kyle/oncall/env"  # 模拟生产环境目录
+    # runbook_search 检索模式:keyword(旧关键词) | vector(纯余弦) | hybrid(余弦+重排)
+    # 默认 keyword:eval_rag 实测 hybrid R@3(0.944)< keyword(0.972),按门禁规则回退;
+    # hybrid 在 R@1/MRR/paraphrase 维度更优,作为 opt-in 开关保留
+    runbook_search: str = "keyword"
+
+
+@dataclass
+class RagConfig:
+    # 通用 RAG 检索:嵌入提供方 local(确定性哈希)或 openai(OpenAI 兼容端点)
+    embedding_provider: str = "local"
+    embedding_base_url: str = ""  # openai 模式必填,如 https://api.openai.com/v1
+    embedding_model: str = ""     # openai 模式必填
+    # 缺省时嵌入器内部回退读 KYLE_RAG_EMBEDDING_API_KEY
+    embedding_api_key: str = ""
+    cache_dir: str = "~/.kyle/cache/embeddings"  # API 嵌入磁盘缓存
 
 
 @dataclass
@@ -112,6 +127,7 @@ class KyleConfig:
     compaction: CompactionConfig = field(default_factory=CompactionConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     oncall: OncallConfig = field(default_factory=OncallConfig)
+    rag: RagConfig = field(default_factory=RagConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
 
 
@@ -149,7 +165,7 @@ def get_config() -> KyleConfig:
 def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
     known = {
         "core", "logging", "agent", "llm", "trace", "permission", "compaction",
-        "memory", "oncall", "mcp",
+        "memory", "oncall", "rag", "mcp",
     }
     unknown = set(data.keys()) - known
     if unknown:
@@ -356,7 +372,7 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
         oc = data["oncall"]
         if not isinstance(oc, dict):
             raise SystemExit("Config error: [oncall] must be a table")
-        unknown_oc: set[str] = set(oc.keys()) - {"enabled", "env_dir"}
+        unknown_oc: set[str] = set(oc.keys()) - {"enabled", "env_dir", "runbook_search"}
         if unknown_oc:
             raise SystemExit(f"Unknown [oncall] keys: {', '.join(sorted(unknown_oc))}")
         if "enabled" in oc:
@@ -369,6 +385,38 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
             if not isinstance(val, str):
                 raise SystemExit("Config error: oncall.env_dir must be a string")
             config.oncall.env_dir = val
+        if "runbook_search" in oc:
+            val = oc["runbook_search"]
+            if val not in ("keyword", "vector", "hybrid"):
+                raise SystemExit(
+                    "Config error: oncall.runbook_search must be "
+                    "'keyword', 'vector' or 'hybrid'"
+                )
+            config.oncall.runbook_search = val
+
+    if "rag" in data:
+        rag = data["rag"]
+        if not isinstance(rag, dict):
+            raise SystemExit("Config error: [rag] must be a table")
+        unknown_rag: set[str] = set(rag.keys()) - {
+            "embedding_provider", "embedding_base_url", "embedding_model",
+            "embedding_api_key", "cache_dir",
+        }
+        if unknown_rag:
+            raise SystemExit(f"Unknown [rag] keys: {', '.join(sorted(unknown_rag))}")
+        if "embedding_provider" in rag:
+            val = rag["embedding_provider"]
+            if val not in ("local", "openai"):
+                raise SystemExit(
+                    "Config error: rag.embedding_provider must be 'local' or 'openai'"
+                )
+            config.rag.embedding_provider = val
+        for key in ("embedding_base_url", "embedding_model", "embedding_api_key", "cache_dir"):
+            if key in rag:
+                val = rag[key]
+                if not isinstance(val, str):
+                    raise SystemExit(f"Config error: rag.{key} must be a string")
+                setattr(config.rag, key, val)
 
     if "mcp" in data:
         mcp = data["mcp"]
@@ -545,6 +593,40 @@ def _apply_env(config: KyleConfig) -> None:
     oncall_env = os.environ.get("KYLE_ONCALL_ENV")
     if oncall_env is not None:
         config.oncall.env_dir = oncall_env
+
+    oncall_rb = os.environ.get("KYLE_ONCALL_RUNBOOK_SEARCH")
+    if oncall_rb is not None:
+        if oncall_rb not in ("keyword", "vector", "hybrid"):
+            raise SystemExit(
+                "Config error: KYLE_ONCALL_RUNBOOK_SEARCH must be "
+                "'keyword', 'vector' or 'hybrid'"
+            )
+        config.oncall.runbook_search = oncall_rb
+
+    rag_provider = os.environ.get("KYLE_RAG_EMBEDDING_PROVIDER")
+    if rag_provider is not None:
+        if rag_provider not in ("local", "openai"):
+            raise SystemExit(
+                f"Config error: KYLE_RAG_EMBEDDING_PROVIDER must be local or openai, "
+                f"got: {rag_provider!r}"
+            )
+        config.rag.embedding_provider = rag_provider
+
+    rag_base_url = os.environ.get("KYLE_RAG_EMBEDDING_BASE_URL")
+    if rag_base_url is not None:
+        config.rag.embedding_base_url = rag_base_url
+
+    rag_model = os.environ.get("KYLE_RAG_EMBEDDING_MODEL")
+    if rag_model is not None:
+        config.rag.embedding_model = rag_model
+
+    rag_api_key = os.environ.get("KYLE_RAG_EMBEDDING_API_KEY")
+    if rag_api_key is not None:
+        config.rag.embedding_api_key = rag_api_key
+
+    rag_cache_dir = os.environ.get("KYLE_RAG_EMBEDDING_CACHE_DIR")
+    if rag_cache_dir is not None:
+        config.rag.cache_dir = rag_cache_dir
 
     compact_tool_keep = os.environ.get("KYLE_COMPACT_TOOL_KEEP")
     if compact_tool_keep is not None:

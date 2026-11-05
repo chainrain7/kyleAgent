@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import re
+from dataclasses import replace
 from pathlib import Path
 
+from kyle_agent.core.config import KyleConfig, OncallConfig
 from kyle_agent.oncall.faults import BY_ID
 from kyle_agent.oncall.sim import SimEnv
 from kyle_agent.oncall.tools import build_oncall_tools
+
+_RUNBOOKS = Path(__file__).parents[2] / "src" / "kyle_agent" / "oncall" / "runbooks"
+
+
+# 构造显式 oncall 配置(禁用外置 config 读取,测试不触碰真实 ~/.kyle)
+def _cfg(mode: str = "hybrid") -> KyleConfig:
+    return KyleConfig(oncall=OncallConfig(enabled=True, env_dir="~", runbook_search=mode))
 
 
 # 按名取工具并调用的便捷封装
@@ -14,11 +24,34 @@ def _run(tools: list, name: str, params: dict) -> object:
     return asyncio.run(tool.invoke(params))
 
 
+# 复刻改造前的关键词打分实现,作为 keyword 模式的逐字节对照 oracle
+def _legacy_keyword_content(query: str) -> str:
+    terms = [w for w in re.split(r"[\s,，]+", query.lower()) if w]
+    scored: list[tuple[float, str]] = []
+    for path in sorted(_RUNBOOKS.glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        lower = text.lower()
+        title = path.stem.replace("-", " ")
+        score = 0.0
+        for term in terms:
+            score += lower.count(term) * 1.0
+            if term in title:
+                score += 5.0
+        if score > 0:
+            scored.append((score, text.strip()))
+    if not scored:
+        available = [p2.stem for p2 in _RUNBOOKS.glob("*.md")]
+        return f"no matching runbook. available: {available}"
+    scored.sort(key=lambda x: -x[0])
+    top = scored[:3]
+    return "\n\n---\n\n".join(t for _, t in top)
+
+
 # 构造已注入指定剧本的环境与工具集
 def _setup(tmp_path: Path, fault_id: str) -> tuple[SimEnv, list]:
     env = SimEnv.reset(tmp_path / "env")
     BY_ID[fault_id].inject(env)
-    return env, build_oncall_tools(tmp_path / "env")
+    return env, build_oncall_tools(tmp_path / "env", _cfg())
 
 
 # 功能:只读四件套在故障环境下的输出可用性
@@ -50,6 +83,44 @@ async def test_runbook_search_relevance(tmp_path: Path) -> None:
     assert "内存泄漏" in hit.content and "处置" in hit.content
     miss = await tools[4].invoke({"query": "zzz_unrelated_zzz"})
     assert "no matching runbook" in miss.content
+
+
+# 功能:keyword 模式输出与改造前旧实现逐字节一致(含 no-match 行)
+# 设计:monkeypatch 不可用场景下直接注入 config 切模式,oracle 复刻旧打分代码,
+#       命中与未命中两类查询都逐字节对照,锁定输出形状契约
+async def test_runbook_keyword_mode_identical_to_legacy(tmp_path: Path) -> None:
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    rb = next(t for t in tools if t.name == "runbook_search")
+    rb._config = replace(_cfg(), oncall=OncallConfig(enabled=True, runbook_search="keyword"))
+    for query in ["内存 上涨 OOM", "证书 过期", "config validation", "zzz_unrelated_zzz"]:
+        res = await rb.invoke({"query": query})
+        assert res.content == _legacy_keyword_content(query), f"query={query!r}"
+
+
+# 功能:vector/hybrid 模式命中时输出仍是 top-3 全文拼接形状(与 keyword 一致)
+# 设计:同查询跑三模式,断言命中时内容都含目标 runbook 全文且分隔符一致,
+#       证明三种模式输出形状契约统一,仅"选哪 3 篇"的逻辑不同
+async def test_runbook_three_modes_same_shape(tmp_path: Path) -> None:
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    rb = next(t for t in tools if t.name == "runbook_search")
+    disk = (_RUNBOOKS / "memory-leak.md").read_text(encoding="utf-8").strip()
+    for mode in ("keyword", "vector", "hybrid"):
+        rb._config = replace(_cfg(), oncall=OncallConfig(enabled=True, runbook_search=mode))
+        res = await rb.invoke({"query": "内存 上涨 OOM"})
+        assert disk in res.content, f"mode={mode} 缺少目标全文"
+        if mode != "keyword":
+            assert "\n\n---\n\n" in res.content
+
+
+# 功能:未知检索模式返回结构化错误而非抛异常
+# 设计:注入非法模式名,断言 ToolResult.is_error 且含可读原因,
+#       工具层兜底保证 daemon 不因配置错误崩进程
+async def test_runbook_invalid_mode_structured_error(tmp_path: Path) -> None:
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    rb = next(t for t in tools if t.name == "runbook_search")
+    rb._config = replace(_cfg(), oncall=OncallConfig(enabled=True, runbook_search="semantic"))
+    res = await rb.invoke({"query": "内存"})
+    assert res.is_error and "keyword|vector|hybrid" in res.content
 
 
 # 功能:service_restart 精确恢复——清除匹配故障、回基线、告警 resolved

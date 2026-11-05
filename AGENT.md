@@ -30,6 +30,9 @@ uv run python scripts/gen_protocol_doc.py --check
 uv run kyle-core                        # foreground; Ctrl+C to stop
 KYLE_PORT=8000 uv run kyle-core        # override port
 
+# Runbook retrieval quality eval (offline, local hashing embedder, no key)
+uv run python scripts/eval_rag.py
+
 # Send a ping
 uv run kyle ping
 uv run kyle --version
@@ -75,6 +78,24 @@ Beyond the staged S0–S7 base, the runtime now ships:
 - **OnCallCopilot** (complete, Phases 0–5): quantified report at docs/report/metrics.md
   and resume/interview deliverables at docs/career/resume.md — keep their numbers in sync
   with evals results when behavior changes.
+- **Vector RAG engine** (`core/rag/`, generic pipeline): chunk_markdown (ATX split,
+  800-char cap, <50-char fragment merge, section_path) → HashingEmbedder
+  (blake2b feature hashing, CJK unigram+bigram + ASCII words, library-level IDF,
+  sublinear tf, deterministic across processes — built-in `hash()` is forbidden)
+  or OpenAICompatEmbedder (disk cache `blake2b(model\x00text).json`, zero network
+  on hit) → VectorStore (cosine linear scan, <100 chunks so ANN is overkill) →
+  rerank (0.6·cosine + 0.3·IDF-weighted Jaccard + 0.1·title hit). `runbook_search`
+  tool supports keyword/vector/hybrid modes with identical output shape (top-3
+  full documents, byte-identical in keyword mode); no-match is judged by *lexical
+  evidence* (real feature intersection), never by absolute cosine — hash-bucket
+  noise measured at 0.13+ cos beats weak true hits, bucket collisions cannot fake
+  feature intersections. Default mode is `keyword`: eval_rag measured hybrid
+  R@3 0.944 < keyword 0.972 (gate rule says fall back); hybrid wins R@1
+  (0.889 vs 0.778) / MRR / literal+paraphrase, opt-in via
+  `oncall.runbook_search`. Labeled set: `evals/rag_queries.json` (36 queries,
+  literal/paraphrase); eval script: `scripts/eval_rag.py` (offline, zero key).
+  Config keys `[rag]` (embedding_provider/base_url/model/api_key/cache_dir) —
+  three-way sync in config.py dataclass + _apply_toml + _apply_env.
 - **OnCallCopilot** (Phases 0–4 landed): duty workbench on the Web Console — alert
   queue (click → canned diagnosis goal), service health polling (3s `/api/state`),
   drill panel (POST `/api/inject|reset`), impact-aware approval cards, report overlay
