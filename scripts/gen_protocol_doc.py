@@ -285,7 +285,8 @@ def main() -> None:
         print(f"OK: {output_path} is up to date.")
     else:
         output_path = Path(args.output)
-        output_path.write_text(content)
+        output_path.write_text(content, newline="
+")
         print(f"Generated {output_path}")
 
 
