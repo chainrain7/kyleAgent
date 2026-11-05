@@ -51,15 +51,29 @@ kyle (CLI)   kyle-tui (TUI, S2+)
 
 **`kyle-tui` is the primary frontend.** All user-facing work on task management, observability, and interaction should be designed for and validated in the TUI first. The `kyle` CLI exists only for quick scripted testing and debugging — it is not a product surface. When implementing features that touch the user interface, invest in the TUI layout, event rendering, and keyboard interactions. Do not shortcut TUI work by pointing to the CLI as an alternative.
 
-### Current capability snapshot (2026-10-25, keep in sync with README)
+### Current capability snapshot (2026-11-05, keep in sync with README)
 
 Beyond the staged S0–S7 base, the runtime now ships:
 
-- **Evals** (`evals/` + `scripts/run_evals.py`): 10 deterministic tasks judged by
+- **Evals** (`evals/` + `scripts/run_evals.py`): 11 base deterministic tasks
+  (31 total with the 20-scenario oncall suite, `--suite all`) judged by
   workspace end-state assertions; cassette record/replay gives offline, zero-key
   deterministic regression (CI gate: `tests/integration/test_eval_replay.py`).
   Changing tool *semantics* requires re-recording cassettes; new tasks require a
   cassette or the coverage test fails.
+- **Engine-level replan loop** (`core/orchestrate/`): `orchestrate_run` tool drives
+  planner→executor→reviewer cycles via `SpawnAgentTool` (foreground, strictly
+  serial — cassette-replay invariant). Reviewer outputs a trailing
+  `VERDICT: ACHIEVED|PARTIAL|FAILED` line (parsed by `orchestrate/verdict.py`,
+  lenient within the last 5 non-empty lines; missing verdict falls back to
+  PARTIAL = keep replanning). On non-ACHIEVED verdicts the previous plan, the
+  executor summary (truncated 4000 chars) and the reviewer findings are fed back
+  into the planner for a revised plan, until ACHIEVED or the iteration cap.
+  Config: `[orchestration] max_iterations` (default 3, env
+  `KYLE_ORCHESTRATION_MAX_ITERATIONS`). The `orchestrate` skill is a thin wrapper
+  calling this tool. Tool-execution timeout is tunable via `KYLE_TOOL_TIMEOUT_S`
+  (default 120s) because a multi-cycle orchestration run exceeds the default
+  `invoke_tool` wait_for budget; do NOT let replay environments set it low.
 - **Context engine**: cl100k_base token accounting (`core/compact/tokens.py`),
   message-level cache breakpoints + `cache_hit_rate` metric, cross-session FTS5
   memory (`core/memory/index.py`, injected as Recalled Memories), structured
@@ -162,7 +176,7 @@ Four-tier priority: **built-in defaults → `~/.kyle/config.toml` → `.env` →
 
 S0 keys: `host` (default `127.0.0.1`), `port` (default `7437`), `log_level`, `log_file`. Config file is silently skipped if absent; unknown keys cause a hard exit.
 
-Relevant env vars: `KYLE_CONFIG`, `KYLE_HOST`, `KYLE_PORT`, `KYLE_LOG_LEVEL`, `KYLE_LOG_FILE`, `KYLE_LOG_FORMAT`.
+Relevant env vars: `KYLE_CONFIG`, `KYLE_HOST`, `KYLE_PORT`, `KYLE_LOG_LEVEL`, `KYLE_LOG_FILE`, `KYLE_LOG_FORMAT`, `KYLE_ORCHESTRATION_MAX_ITERATIONS`, `KYLE_TOOL_TIMEOUT_S`.
 
 ### Daemon entry (`src/kyle_agent/core/app.py`)
 

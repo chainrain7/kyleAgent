@@ -43,12 +43,13 @@ uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
 - **上下文治理**：基于 token 水位的自动 compact（默认关闭，可配置阈值），TUI 中 `/compact` 手动压缩；超长 `tool_result` 在回放历史时按上限截断
 - **Skills**：Markdown 声明式技能（frontmatter + 正文 system prompt），`/` 前缀调用，支持 `$ARGUMENTS` 参数替换与工具白名单
 - **Subagents**：`spawn_agent` 工具派生隔离上下文的子 Agent，支持前台阻塞与后台并行（`agent_result` 查询），角色（planner / executor / reviewer）用 TOML 配置，嵌套深度上限 2
+- **引擎级 Plan-Execute-Replan 闭环**：`orchestrate_run` 工具驱动 planner→executor→reviewer 严格串行循环——reviewer 末行输出 `VERDICT: ACHIEVED|PARTIAL|FAILED` 结构化裁决（无裁决保守回退 PARTIAL），未达成时上一轮计划全文 + 执行汇报摘要 + 审查发现自动回注 planner 修订计划，直至达成或迭代上限（`[orchestration] max_iterations`，默认 3）；`orchestrate` skill 是该工具的薄封装
 - **MCP 接入**：`config.toml` 声明 MCP server（stdio / TCP 两种传输），启动时自动发现工具并以 `servername__toolname` 命名注册
 - **模型路由**：`llm.router = "rule_based"` 时按步次/目标复杂度分档调度——规划步与复杂任务走 `planning_model`，执行步/简单问答/compact 摘要走 `execution_model`；每次选择经 `llm.model_selected` 事件上报，trace 可核验
 - **多后端接入**：`llm.provider = "anthropic" | "openai"`；OpenAI 兼容端点（DeepSeek `/v1`、vLLM、Ollama 等）的消息格式翻译在 provider 边界完成，核心循环零感知
 - **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
 - **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
-- **评测体系**：10 个确定性任务集（终态断言、不依赖 LLM 打分）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
+- **评测体系**：11 个确定性任务集（终态断言、不依赖 LLM 打分；oncall 套件另有 20 剧本，`--suite all` 共 31）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
 - **向量 RAG 检索**：`core/rag/` 通用管道（分片→嵌入→召回→重排，零第三方依赖）；确定性哈希嵌入（blake2b 特征哈希 + 库级 IDF + sublinear tf，跨进程逐位一致）或 OpenAI 兼容嵌入端点（磁盘缓存）；`runbook_search` 工具三模式（keyword/vector/hybrid）输出形状一致，36 条标注查询离线评测（`scripts/eval_rag.py`），无匹配按词面证据判定
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
 - **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
@@ -134,6 +135,9 @@ format = "text"            # "text" | "json"
 [agent]
 max_steps = 20             # 单次 run 的最大循环步数
 
+[orchestration]
+max_iterations = 3         # orchestrate_run 引擎级 replan 闭环的迭代上限
+
 [llm]
 provider      = "anthropic"     # "anthropic" | "openai"（OpenAI 兼容端点）
 default_model = "claude-sonnet-4-6"
@@ -185,6 +189,8 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `agent.max_steps` | int | `20` | `KYLE_MAX_STEPS` |
 | `agent.max_parallel_tools` | int | `4` | — |
 | `agent.durable_runs` | bool | `true` | — |
+| `orchestration.max_iterations` | int | `3` | `KYLE_ORCHESTRATION_MAX_ITERATIONS` |
+| （工具执行超时,仅 env） | float | `120.0` | `KYLE_TOOL_TIMEOUT_S` |
 | `llm.provider` | str | `anthropic` | `KYLE_LLM_PROVIDER` |
 | `llm.default_model` | str | `claude-sonnet-4-6` | `KYLE_LLM_DEFAULT_MODEL` |
 | `llm.router` | str | `static` | — |
@@ -447,6 +453,7 @@ kyleCode/
 │   │   ├── skills/     #   Skill 加载器与内建 skill
 │   │   ├── agents/     #   Subagent 角色配置加载与内建角色
 │   │   ├── subagent/   #   spawn_agent / agent_result 与后台任务注册表
+│   │   ├── orchestrate/ #  orchestrate_run 引擎级 plan-execute-replan 闭环(verdict 解析 + 循环工具)
 │   │   ├── mcp/        #   MCP 客户端、工具包装、server 生命周期管理
 │   │   ├── rag/        #   向量 RAG 管道(分片/嵌入/向量库/重排)
 │   │   ├── llm/        #   Anthropic Provider（流式 + prompt caching）

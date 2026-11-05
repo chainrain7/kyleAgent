@@ -31,7 +31,7 @@ from scripts.run_metrics import compute_metrics  # noqa: E402
 ALL_TOOL_NAMES: tuple[str, ...] = (
     "read_file", "bash", "write_file", "list_dir", "web_search",
     "note_save", "task_create", "task_update", "task_list", "task_get",
-    "spawn_agent", "agent_result",
+    "spawn_agent", "agent_result", "orchestrate_run",
     "alerts_list", "service_status", "logs_query", "metrics_query",
     "runbook_search", "service_restart", "scale_up", "log_cleanup",
     "submit_diagnosis",

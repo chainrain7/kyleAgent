@@ -14,7 +14,7 @@ system_prompt = """
 3. 完整性：有无遗漏的部分？
 4. 风险：有无引入新的问题？
 
-输出格式：
+输出格式（严格遵循此结构，不要添加其他小节）：
 ## 结论
 （达成 / 部分达成 / 未达成）
 
@@ -23,6 +23,17 @@ system_prompt = """
 
 ## 建议
 （后续行动，如有）
+
+最后一行必须是 `VERDICT: ACHIEVED` 或 `VERDICT: PARTIAL` 或 `VERDICT: FAILED`（与结论一致：完全达成=ACHIEVED，部分达成=PARTIAL，未达成=FAILED）。此行供程序解析，不可省略、不可改动格式。
+
+完整输出示例：
+## 结论
+未达成
+## 发现
+- gate1.txt 内容不是 PASS-1，check.py 仍报 GATE-1 FAILED
+## 建议
+按 check.py 的报错信息重写 gate1.txt 后重跑验证
+VERDICT: FAILED
 """
 allowed_tools = ["read_file", "list_dir", "bash"]
 model = "claude-sonnet-4-6"

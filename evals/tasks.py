@@ -5,10 +5,12 @@
 - setup 全部使用确定性内容(固定文件/固定数字),保证 cassette 回放时
   工具重执行结果与录制时一致(顺序匹配的确定性前提);
 - 覆盖面:只读检索 / 写创建 / bash 副作用 / 多文件编辑 / 任务规划 /
-  记忆笔记 / 多工具汇总 / 修 bug(测试驱动)/ 子 Agent。
+  记忆笔记 / 多工具汇总 / 修 bug(测试驱动)/ 子 Agent / 引擎级 replan。
 """
 from __future__ import annotations
 
+import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -98,6 +100,39 @@ def _setup_subagent(ws: Path) -> None:
     (ws / "secret.txt").write_text("the password is KYLE-SECRET-7\n", encoding="utf-8")
 
 
+# orchestrate-replan 工作区的多级闸门检查器:闸门 N+1 的要求只在闸门 N 通过后
+# 才暴露在输出里——朴素计划(一轮全修)无从得知第二道的要求,必须 replan
+_CHECK_PY = '''"""Multi-gate checker: gate N+1 requirements are revealed only after gate N."""
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    gate1 = Path("gate1.txt")
+    if not gate1.exists() or gate1.read_text(encoding="utf-8").strip() != "PASS-1":
+        print("GATE-1 FAILED: create gate1.txt containing exactly: PASS-1")
+        return 1
+    print("GATE-1 passed.")
+    gate2 = Path("hidden_required.txt")
+    if not gate2.exists() or gate2.read_text(encoding="utf-8").strip() != "OPEN-SESAME":
+        print("GATE-2 hint revealed: create hidden_required.txt containing exactly: OPEN-SESAME")
+        print("GATE-2 FAILED: hidden_required.txt missing or wrong content")
+        return 2
+    print("GATE-2 passed.")
+    print("ALL GATES PASSED")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+# 准备:orchestrate-replan 的多级闸门工作区(仅 check.py,闸门产物由执行产生)
+def _setup_orchestrate_replan(ws: Path) -> None:
+    (ws / "check.py").write_text(_CHECK_PY, encoding="utf-8")
+
+
 # ── verify 函数 ───────────────────────────────────────────────────
 
 
@@ -157,6 +192,30 @@ def _verify_fix_bug(**kw: Any) -> None:
 def _verify_subagent(**kw: Any) -> None:
     mentions(kw["outcome"], "KYLE-SECRET-7")
     events_include(kw["events"], "subagent.started")
+
+
+# 判定:orchestrate-replan——两道闸门产物正确、check.py 真跑通过、
+# 且事件流含至少两次规划子代理启动(replan 实证)
+def _verify_orchestrate_replan(**kw: Any) -> None:
+    file_equals(kw["workspace"], "gate1.txt", "PASS-1")
+    file_equals(kw["workspace"], "hidden_required.txt", "OPEN-SESAME")
+    # 终态确定性判定:真实重跑 check.py(工具在回放时已重执行,产物应存在)
+    proc = subprocess.run(
+        [sys.executable, "check.py"],
+        cwd=kw["workspace"], capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=60,
+    )
+    assert proc.returncode == 0, f"check.py 未通过: rc={proc.returncode} {proc.stdout!r}"
+    assert "ALL GATES PASSED" in proc.stdout
+    # replan 实证:≥2 次 description 含"规划"的 subagent.started
+    planning = [
+        e for e in kw["events"]
+        if e.get("type") == "subagent.started"
+        and "规划" in str(e.get("description", ""))
+    ]
+    assert len(planning) >= 2, (
+        f"规划子代理启动仅 {len(planning)} 次,未发生引擎级 replan"
+    )
 
 
 # ── 任务注册表 ────────────────────────────────────────────────────
@@ -222,5 +281,18 @@ TASKS: list[EvalTask] = [
         goal="用 spawn_agent 派一个子 agent 去读 secret.txt 并告诉你密码,然后你转述给我。",
         setup=_setup_subagent, verify=_verify_subagent,
         note="spawn_agent 派生与结果回传", max_steps=10,
+    ),
+    EvalTask(
+        id="orchestrate-replan", category="complex",
+        goal=(
+            "工作区的 check.py 是多级闸门检查器(用 python check.py 运行),每道闸门的"
+            "要求只会在前一道修好后才暴露。请用 orchestrate_run 编排工具完成它,"
+            "goal 参数只传以下任务原文(不要添加其他内容):「让 python check.py 输出 "
+            "ALL GATES PASSED。约束:所有操作只在当前目录用相对路径,禁止 cd 与上级"
+            "目录;每轮只修复当前已暴露的这一道闸门;发现新闸门要求时不要顺手修复,"
+            "把它的要求写入执行汇报交评审,等待重规划后在新一轮处理。」"
+        ),
+        setup=_setup_orchestrate_replan, verify=_verify_orchestrate_replan,
+        note="引擎级 replan:评审未达成→证据回注重规划,须 ≥2 轮规划", max_steps=14,
     ),
 ]

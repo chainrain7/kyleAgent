@@ -20,6 +20,7 @@ from kyle_agent.core.loop import AgentLoop
 from kyle_agent.core.mcp.server import McpServerManager
 from kyle_agent.core.memory.index import MemoryIndex
 from kyle_agent.core.memory.loader import load_context_file
+from kyle_agent.core.orchestrate.tool import OrchestrateRunTool
 from kyle_agent.core.permissions.manager import PermissionManager
 from kyle_agent.core.runs import RUNS_DIR, new_run_id
 from kyle_agent.core.session.model import Session
@@ -138,6 +139,21 @@ class AgentRunner:
                 )
             if _ok("agent_result"):
                 registry.register(AgentResultTool(self._task_registry))
+            # 引擎级 replan 闭环工具:与 spawn_agent 同路径、同注册条件
+            if _ok("orchestrate_run"):
+                registry.register(
+                    OrchestrateRunTool(
+                        provider=provider,
+                        parent_bus=bus,
+                        parent_run_id=run_id,
+                        permission_manager=self._permission_manager,
+                        max_steps=self._config.agent.max_steps,
+                        task_registry=self._task_registry,
+                        runs_dir=runs_dir,
+                        session_id=session_id,
+                        max_iterations=self._config.orchestration.max_iterations,
+                    )
+                )
         # OnCallCopilot 业务层:[oncall] enabled 时注册领域工具
         if self._config.oncall.enabled:
             from kyle_agent.oncall.tools import build_oncall_tools

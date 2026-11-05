@@ -41,6 +41,23 @@
 > - 关键工程发现:哈希嵌入的桶碰撞噪声(cos 0.13+)会压过弱真命中,绝对阈值
 >   不可行;改用**词面证据判定无匹配**(真实特征交集),桶碰撞无法伪造特征交集。
 
+## 1.6 引擎级 Plan-Execute-Replan 闭环(Multi-agent 编排升级)
+
+> - 把 planner→executor→reviewer 从"纯 prompt 一次性线性流程"升级为**引擎级
+>   replan 闭环**:reviewer 末行输出结构化裁决 `VERDICT: ACHIEVED|PARTIAL|FAILED`,
+>   引擎程序化解析(末尾 5 个非空行窗口内容错;无裁决保守回退 PARTIAL——
+>   宁可多花一轮也不在未证实时宣布成功);未达成时上一轮计划全文 + 执行汇报
+>   摘要(截断 4000 字)+ 审查发现自动回注 planner 出修订计划,直到达成或迭代
+>   上限(`[orchestration] max_iterations`,默认 3);
+> - **闭环不碰核心循环**:复用 spawn_agent 前景模式驱动三个子角色,闭环逻辑
+>   收在新模块 `core/orchestrate/`,核心 ReAct loop 与事件协议零改动;循环内
+>   严格串行(planner→executor→reviewer 逐个 await)是 cassette 顺序回放的
+>   确定性前提,写成代码注释级不变量;
+> - **评测实证**:新增 `orchestrate-replan` 评测任务——工作区是两级顺序闸门
+>   检查器,第二道闸门的要求只在第一道修好后才在输出中暴露,"朴素一轮计划
+>   必败";verify 断言两道闸门产物正确 + check.py 真跑通过 + 事件流含 ≥2 次
+>   规划子代理启动(replan 实证),cassette 录制/回放进 CI 门禁。
+
 ## 2. 三分钟讲项目骨架
 
 1. **一句话定位**(10s):"值班工程师半夜收到告警,我的系统自动查日志查指标定位根因,

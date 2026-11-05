@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -28,6 +29,23 @@ _DEFAULT_TIMEOUT: float = 120.0
 _MAX_RETRIES: int = 2
 _RETRY_BASE_S: float = 2.0  # backoff base; tests can monkeypatch to 0
 _RETRYABLE: frozenset[str] = frozenset({"runtime_error", "rate_limited"})
+
+
+# 解析工具执行超时:默认 120s;KYLE_TOOL_TIMEOUT_S 可调高(如 orchestrate_run 的
+# 多轮子代理循环)。不走 config 三处同步的原因:超时在 invoke_tool 默认参数处
+# 生效,而调用方 core/loop.py 不传该参数(编排引擎约定不动 loop.py),env 直读
+# 是唯一不改 loop 的通道;非法值静默回退默认,不影响普通工具路径
+def _resolve_timeout(timeout: float | None) -> float:
+    if timeout is not None:
+        return timeout
+    raw = os.environ.get("KYLE_TOOL_TIMEOUT_S")
+    if not raw:
+        return _DEFAULT_TIMEOUT
+    try:
+        val = float(raw)
+    except ValueError:
+        return _DEFAULT_TIMEOUT
+    return val if val > 0 else _DEFAULT_TIMEOUT
 
 
 def _now() -> str:
@@ -66,11 +84,12 @@ async def invoke_tool(
     tool_call: ToolCallBlock,
     bus: EventBus,
     run_id: str,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float | None = None,
     *,
     permission_manager: PermissionManager | None = None,
     session_id: str = "",
 ) -> ToolResult:
+    timeout = _resolve_timeout(timeout)
     t0 = time.monotonic()
 
     await bus.publish(

@@ -89,6 +89,13 @@ class OncallConfig:
 
 
 @dataclass
+class OrchestrationConfig:
+    # orchestrate_run 引擎级 replan 闭环的默认迭代上限
+    # (工具参数 max_iterations>0 时可按次覆盖;至少 1 轮 plan→execute→review)
+    max_iterations: int = 3
+
+
+@dataclass
 class RagConfig:
     # 通用 RAG 检索:嵌入提供方 local(确定性哈希)或 openai(OpenAI 兼容端点)
     embedding_provider: str = "local"
@@ -127,6 +134,7 @@ class KyleConfig:
     compaction: CompactionConfig = field(default_factory=CompactionConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     oncall: OncallConfig = field(default_factory=OncallConfig)
+    orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
     rag: RagConfig = field(default_factory=RagConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
 
@@ -165,7 +173,7 @@ def get_config() -> KyleConfig:
 def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
     known = {
         "core", "logging", "agent", "llm", "trace", "permission", "compaction",
-        "memory", "oncall", "rag", "mcp",
+        "memory", "oncall", "orchestration", "rag", "mcp",
     }
     unknown = set(data.keys()) - known
     if unknown:
@@ -393,6 +401,21 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                     "'keyword', 'vector' or 'hybrid'"
                 )
             config.oncall.runbook_search = val
+
+    if "orchestration" in data:
+        orch = data["orchestration"]
+        if not isinstance(orch, dict):
+            raise SystemExit("Config error: [orchestration] must be a table")
+        unknown_orch: set[str] = set(orch.keys()) - {"max_iterations"}
+        if unknown_orch:
+            raise SystemExit(f"Unknown [orchestration] keys: {', '.join(sorted(unknown_orch))}")
+        if "max_iterations" in orch:
+            val = orch["max_iterations"]
+            if not isinstance(val, int) or val <= 0:
+                raise SystemExit(
+                    "Config error: orchestration.max_iterations must be a positive integer"
+                )
+            config.orchestration.max_iterations = val
 
     if "rag" in data:
         rag = data["rag"]
@@ -627,6 +650,22 @@ def _apply_env(config: KyleConfig) -> None:
     rag_cache_dir = os.environ.get("KYLE_RAG_EMBEDDING_CACHE_DIR")
     if rag_cache_dir is not None:
         config.rag.cache_dir = rag_cache_dir
+
+    orch_max_str = os.environ.get("KYLE_ORCHESTRATION_MAX_ITERATIONS")
+    if orch_max_str is not None:
+        try:
+            orch_max_val = int(orch_max_str)
+            if orch_max_val <= 0:
+                raise SystemExit(
+                    "Config error: KYLE_ORCHESTRATION_MAX_ITERATIONS must be a positive "
+                    f"integer, got: {orch_max_str!r}"
+                )
+            config.orchestration.max_iterations = orch_max_val
+        except ValueError:
+            raise SystemExit(
+                "Config error: KYLE_ORCHESTRATION_MAX_ITERATIONS must be an integer, "
+                f"got: {orch_max_str!r}"
+            )
 
     compact_tool_keep = os.environ.get("KYLE_COMPACT_TOOL_KEEP")
     if compact_tool_keep is not None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 import kyle_agent.core.tools.invocation as inv_mod
@@ -177,3 +179,37 @@ async def test_failed_event_has_valid_error_class(monkeypatch: pytest.MonkeyPatc
     for e in events:
         if e.type == "tool.call_failed":  # type: ignore[attr-defined]
             assert e.error_class in valid_classes  # type: ignore[attr-defined]
+
+
+class _SlowTool(BaseTool):
+    name = "slow"
+    description = "Sleeps then returns"
+    input_schema: dict[str, object] = {"type": "object", "properties": {}, "required": []}
+
+    def __init__(self, seconds: float) -> None:
+        self._seconds = seconds
+
+    async def invoke(self, params: dict[str, object]) -> ToolResult:
+        await asyncio.sleep(self._seconds)
+        return ToolResult(content="done")
+
+
+# 功能：KYLE_TOOL_TIMEOUT_S 环境变量可调工具执行超时（未显式传 timeout 时生效）
+# 设计：env 设 0.01 且工具 sleep 0.5s，断言超时按 env 值触发而非固定 120s；
+# 再删掉 env 用显式 timeout 参数，验证两种来源互不干扰
+async def test_env_tool_timeout_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = ToolRegistry()
+    registry.register(_SlowTool(0.5))
+    monkeypatch.setenv("KYLE_TOOL_TIMEOUT_S", "0.01")
+    result = await invoke_tool(registry, _call("slow"), EventBus(), run_id="r")
+    assert result.is_error
+    assert result.error_type == "timeout"
+
+    monkeypatch.delenv("KYLE_TOOL_TIMEOUT_S")
+    registry2 = ToolRegistry()
+    registry2.register(_SlowTool(0.5))
+    result2 = await invoke_tool(
+        registry2, _call("slow"), EventBus(), run_id="r", timeout=0.01
+    )
+    assert result2.is_error
+    assert result2.error_type == "timeout"
