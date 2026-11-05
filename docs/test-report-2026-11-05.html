@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="WJnkS9q5Pm9tDz0xy5i0Ft">
+<head data-page-node-id="l1jqqwddO79eaE4ZKaQPpS">
+<meta charset="utf-8" data-page-node-id="cQ0nGNaTqVF4zkWJRjNMJ3">
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="nVdrDtdixdIqN0qYK4elFi">
+<title>kyleAgent 全量测试报告 · 2026-11-05</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#ffffff; --line:#e4e7ec; --text:#1f2329; --muted:#646a73;
+          --ok:#1a7f37; --okbg:#eaf6ed; --bad:#c0341d; --badbg:#fdeceb; --warn:#a35b00; --warnbg:#fff5e5; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px 20px 64px; background:var(--bg); color:var(--text);
+         font:14px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:960px; margin:0 auto; }
+  h1 { font-size:26px; margin:0 0 6px; letter-spacing:.2px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:24px; }
+  h2 { font-size:17px; margin:32px 0 12px; padding-left:10px; border-left:3px solid #3b6cf6; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:14px; }
+  .banner { border-left:4px solid var(--bad); background:var(--badbg); }
+  .banner strong { color:var(--bad); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .kpi .v { font-size:24px; font-weight:650; line-height:1.2; }
+  .kpi .l { color:var(--muted); font-size:12px; margin-top:4px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); font-size:13px; }
+  th,td { border:1px solid var(--line); padding:9px 11px; text-align:left; vertical-align:top; }
+  th { background:#f0f2f5; font-weight:600; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:12px; font-weight:600; }
+  .t-ok { color:var(--ok); background:var(--okbg); }
+  .t-bad { color:var(--bad); background:var(--badbg); }
+  .t-warn { color:var(--warn); background:var(--warnbg); }
+  code { font:12.5px/1.6 "Cascadia Code",Consolas,"SF Mono",monospace; background:#f2f3f5;
+         padding:1px 5px; border-radius:4px; }
+  pre { background:#f2f3f5; border:1px solid var(--line); border-radius:8px; padding:12px 14px;
+        overflow-x:auto; font:12.5px/1.65 "Cascadia Code",Consolas,monospace; margin:8px 0 0; }
+  .del { color:#c0341d; } .add { color:#1a7f37; }
+  ul { margin:8px 0 0; padding-left:20px; } li { margin-bottom:5px; }
+  .foot { color:var(--muted); font-size:12px; margin-top:28px; border-top:1px solid var(--line); padding-top:14px; }
+</style>
+</head>
+<body data-page-node-id="YRIGRshAWZ6WSB55dP7Qit">
+<div class="wrap" data-page-node-id="G3X1f0YtzGdNEIfcKNXHof">
+
+<h1 data-page-node-id="uXfTsMiaM8ow7j3aceuVct">kyleAgent 全量测试报告</h1>
+<div class="sub" data-page-node-id="DGNp3k1SWABhUER8CnJ9EU">被测项目 kyleCode/kyle-agent 0.0.1 &nbsp;·&nbsp; Windows / Python 3.12.13 / uv 0.12.3 &nbsp;·&nbsp; 执行时间 2026-11-04 16:45 – 2026-11-05 10:05</div>
+
+<div class="card banner" data-page-node-id="dTB7C0BC5yOgppgB4iFOyR">
+  <strong data-page-node-id="oDFoIBzpKNKLeAzwFpQBgd">总体结论：干净基线全绿，当前工作区存在 P0 阻断回归。</strong><br data-page-node-id="GCl8xU6glVF2nHGmgQy9sB">
+  首次全量测试在干净工作区完成，450 项测试、静态检查、协议文档、评测回放门禁、构建全部通过。随后工作区新增 1 次提交及 4 个未提交改动，其中 3 处把 <code data-page-node-id="r89TmbYaOqwAK0LHh3cP4p">encoding=</code> 误加到不接受该参数的函数上，复跑时导致 50 项单元测试失败。该回归属于未提交的工作区改动，不属于仓库 HEAD 基线缺陷。
+</div>
+
+<div class="grid" data-page-node-id="YyMQACGWFCWpCj87vETeHh">
+  <div class="kpi" data-page-node-id="lPrOaQ35hkWmZtG3UEcICQ"><div class="v" data-page-node-id="eR5lfWLrW3eFnButCv5vs2">450</div><div class="l" data-page-node-id="khoqFHWQJdEXBF0akc2alz">测试发现总数（399 单测 + 51 集成）</div></div>
+  <div class="kpi" data-page-node-id="Yl3W9lnZ7G1qde1YMJSNa2"><div class="v" data-page-node-id="SgbCIJLJKNdzBSLho1FaRB">450 / 450</div><div class="l" data-page-node-id="siN5tDndL9u4torqLmxueb">干净基线通过率</div></div>
+  <div class="kpi" data-page-node-id="ZsScBBfNtGXfl6J10Ar2CO"><div class="v" data-page-node-id="wrvdG5EDiRo3NNxSJhSdVn">30 / 30</div><div class="l" data-page-node-id="ZydXUrlWJzYnRBrsuCagfe">评测回放 / cassette 完整</div></div>
+  <div class="kpi" data-page-node-id="CIje1FxdoACGGqIZGB3gFG"><div class="v" data-page-node-id="SWnMNszvczocj8R4dmPYN7">67%</div><div class="l" data-page-node-id="jvXR7J8EhzCDFfR6GaZ9FE">单测行覆盖率（受失败影响偏低）</div></div>
+</div>
+
+<h2 data-page-node-id="EkFhxfH6mEIFdKWxWypDAh">一、测试范围与环境</h2>
+<div class="card" data-page-node-id="qB0ACqLmyPvUFdF2R7fgVv">
+  <ul data-page-node-id="DW1n8XLiwQ040JhJDuE2c0">
+    <li data-page-node-id="hnRoTFGyxChsmXmit2ZBiC">依赖一致性：<code data-page-node-id="KDAvFi3QDQzV4ZphWb5TDO">uv lock --check</code> 通过（54 packages）；venv 为 Python 3.12.13，符合 <code data-page-node-id="dK8lqoLBweFLWzaANzECmZ">requires-python &gt;=3.12,&lt;3.13</code>。</li>
+    <li data-page-node-id="7VVvp1solL0lz6p0Qdkz6u">外部依赖：<code data-page-node-id="aQdinH7m5PcLqJHYAaUoxV">ANTHROPIC_API_KEY</code> 与 <code data-page-node-id="F82PVxCBjYcmtKdw4psSm7">ANTHROPIC_BASE_URL</code> 已配置（未读取或打印具体值），真实 API 连通正常。</li>
+    <li data-page-node-id="zHbFvHs8gYdMsuzk1REyLa">测试流程：环境确认 → 静态检查 → 测试发现 → 单元测试 → 集成测试（离线/mock 与真实 API 分离）→ 专项门禁 → 覆盖率与补充验证 → 报告。</li>
+    <li data-page-node-id="duSvGj7i88jLDsCovCxIUP">基线版本：HEAD <code data-page-node-id="YwCAas6ngBfiPVXdFjbBuG">cf09ae5</code>（2026-11-04 19:12）；首次测试时工作区干净，复跑时工作区已有外部改动。</li>
+  </ul>
+</div>
+
+<h2 data-page-node-id="vb3iTklPZyplXRLVaywQdA">二、执行结果矩阵</h2>
+<table data-page-node-id="AHrdEYdYIVd6YIQeXEcfz1">
+  <tr data-page-node-id="rFi9jHKgCb8DFBLj3dWCFQ"><th style="width:26%" data-page-node-id="jwuFItwDcTcaotgS1ooou9">检查项</th><th style="width:20%" data-page-node-id="Z5iRL5CpDx4JLtNlxLCfWi">结果</th><th data-page-node-id="R9as2rrfE4GX6QNnQoR7fG">说明</th></tr>
+  <tr data-page-node-id="DqPcAESqqyEl0yCpFBQYZT"><td data-page-node-id="7l3atKJStOMHzpXooMeQ1B">ruff check src tests scripts</td><td data-page-node-id="pXucxNMy1LTgIrZWXpHV3i"><span class="tag t-ok" data-page-node-id="A00HBif6RB4BIq0Bo971uW">通过</span></td><td data-page-node-id="bBQHkwj5a52FEsr1405oOV">All checks passed，零违规。</td></tr>
+  <tr data-page-node-id="FXbikXp9zGL1BlGXxNaYeF"><td data-page-node-id="o1UaO8VIfUUELOpHxESbVF">mypy src（严格模式）</td><td data-page-node-id="KpnbxznrK9PK0VOdubwQYj"><span class="tag t-ok" data-page-node-id="Ranb5GuacTlxIFSXCDHWJj">通过</span></td><td data-page-node-id="Q1OQJZX1mJaxrisu66e5rG">100 个源文件无类型错误；按项目约定只查 src。</td></tr>
+  <tr data-page-node-id="ipoKRFFQnbJCBB9AiB0na5"><td data-page-node-id="aMVjmr47T4jUMrCmKP71aC">测试发现</td><td data-page-node-id="9TTCC6X950jKvdZ93LR3dv"><span class="tag t-ok" data-page-node-id="R7j46Mth9ahA4L1JSOVMKp">通过</span></td><td data-page-node-id="6NjjdZajQ9IaWChJ70RRG6">450 项 = 399 单测 + 51 集成。</td></tr>
+  <tr data-page-node-id="ROAZTeVgAduqp6ny4fBFye"><td data-page-node-id="l6xz8XDK0tObtTI1n2mkf4">单元测试（首次，干净基线）</td><td data-page-node-id="kSCJsU2HBBUeHlUhAXtX2T"><span class="tag t-ok" data-page-node-id="FLPBzCyKaEGJtuJBPhioeR">通过</span></td><td data-page-node-id="SC71IhJxy7TZU2S8K4Zb6D">399 passed in 37.27s。</td></tr>
+  <tr data-page-node-id="Lre4QD5qjo6GqTiCgDovBy"><td data-page-node-id="v7E5EVTVx3gVr4rym81FlT">集成测试（离线 / mock，50 项）</td><td data-page-node-id="Cv9zHdKBdYjof0KEA6Fny5"><span class="tag t-ok" data-page-node-id="5yIwnopdSPDg6ofCLCcOAk">通过</span></td><td data-page-node-id="P3BGKfdzXNb83OWOKRoicX">50 passed in 251.60s，含 daemon 拉起、权限流、评测回放、全链路 mock。</td></tr>
+  <tr data-page-node-id="4fsdobgoC74E5YgDJtFJtp"><td data-page-node-id="YB6rxRZvte0ghOsyeeNgEJ">真实 API 端到端</td><td data-page-node-id="yDFLget9Gn4hH5Z2zetmem"><span class="tag t-ok" data-page-node-id="oU2hwZCjJOZuIWKbV0xJeG">通过</span></td><td data-page-node-id="RPQKqWS8ZmKl96PHPXR7zf">1 passed in 8.05s，read_file 工具链路与 events.jsonl 事件序列断言通过。</td></tr>
+  <tr data-page-node-id="7zw6ip3eBCDsRjahpIDBQV"><td data-page-node-id="u6YxyvVG1KzHULrOIatO1b">Wire Protocol 文档同步</td><td data-page-node-id="jkI7otK828DPELlRlF1kkj"><span class="tag t-ok" data-page-node-id="Xv478tI4X54aHry9HDKMz3">通过</span></td><td data-page-node-id="EuHsQ45kujkakHJajnfUXt"><code data-page-node-id="5o0bxin7hGreVVULTRdENG">gen_protocol_doc.py --check</code> 返回 up to date。</td></tr>
+  <tr data-page-node-id="qS2rEahOO9ZgJKoYgVRI9S"><td data-page-node-id="nF49ULBiRoDVUgnWFauTKC">评测回放（all 套件）</td><td data-page-node-id="LiWcEkGr6ARBKcs3MIZ9Dl"><span class="tag t-ok" data-page-node-id="QTVsZXDpAJcIr81WTo2BzJ">通过</span></td><td data-page-node-id="yHaKgRHqHGEejvLcnHgEOe">30/30 PASS，235 次 LLM 调用；cassette 30/30 完整，无缺失。</td></tr>
+  <tr data-page-node-id="hhsOPQsPbCWGU5euJqK9xC"><td data-page-node-id="VVHaP4XV0L06DLa36rOmNx">构建产物</td><td data-page-node-id="QVjvld0twxAea1gSCfPUAJ"><span class="tag t-ok" data-page-node-id="IYxT2ybtkqXMUNuvyT4rGE">通过</span></td><td data-page-node-id="iAoRziiZMGsk8H0pwXSDv5">sdist + wheel 生成成功；wheel 136 条目、100 个 py 模块、entry_points 齐全。</td></tr>
+  <tr data-page-node-id="eGHCGuLENhrAAUPzsmO6vg"><td data-page-node-id="aJjEsNI5diraHmk21paAV6">CLI 入口冒烟</td><td data-page-node-id="r9KoZFtcq3brU3obdCQZii"><span class="tag t-warn" data-page-node-id="hhkp8bOK269lvIL3O6S3Pt">部分</span></td><td data-page-node-id="wtvahdhaSN6Ty5IL7b71IH"><code data-page-node-id="TgEySEmg1SPJGs7rZcbxAP">kyle</code> / <code data-page-node-id="b24BcLqDA7b86cCuNZjf6R">kyle-tui</code> / <code data-page-node-id="WgVbq8NtT3pAGuxPvWtr4a">kyle-webui --help</code> 正常；<code data-page-node-id="1vEgzEiDE1Sco2QBZsmTcF">kyle-core --help</code> 15s 超时（常驻 daemon，不响应 help）。</td></tr>
+  <tr data-page-node-id="CePbmFhPkmuMDHn0aC6JhJ"><td data-page-node-id="bsz1MC25zTNPdmdh8VVCkk">密钥与 Git 卫生</td><td data-page-node-id="cGEyHt9oHvUwzOeK6mWkUT"><span class="tag t-ok" data-page-node-id="GkzgJDhEvUyDAf3rhPR4hQ">通过</span></td><td data-page-node-id="CkISDEWRLsIFrF9x3z7GgC">.env 未被跟踪且被 .gitignore 排除；首次测试时工作区干净。</td></tr>
+  <tr data-page-node-id="8zLPrKjSidkEf1v5C3cpMA"><td data-page-node-id="hQLhv3T7Zd9kMGdQQNHnpC">单元测试（复跑，当前工作区）</td><td data-page-node-id="0RbtkJXaJpGHmKAjpXjxa7"><span class="tag t-bad" data-page-node-id="DQ4lNC3e7EnKeHkPHfe0r5">失败</span></td><td data-page-node-id="PSliBPRb3oDEIbMBbcmiVc">50 failed / 349 passed in 35.95s，全部由 3 处 <code data-page-node-id="bDbqEeXLjjxgkT7sxQ10Rp">encoding=</code> 误改引发。</td></tr>
+</table>
+
+<h2 data-page-node-id="YcNR7qnLST18qaCpvoiHoA">三、缺陷清单</h2>
+
+<div class="card" data-page-node-id="PdDo64Fn3XyDtPpC6TKllj">
+  <span class="tag t-bad" data-page-node-id="AugN0eRjePsOQFN7SajHVt">P0 · 阻断</span> &nbsp;<strong data-page-node-id="J722svKbqUHFnjFmshzhGF">三处 <code data-page-node-id="QKaxZguzoZv939WM8cS1WU">encoding=</code> 参数误加，导致运行时 TypeError</strong>
+  <p style="margin:10px 0 0;color:var(--muted)" data-page-node-id="GVdB5AtiHWkKiQSI1C3zaM">共同特征：这是一次「给文本读写补 utf-8」的批量改动，其中 <code data-page-node-id="0lHVQfDbgiyo2sG7AiBKpe">read_text(encoding=...)</code> / <code data-page-node-id="Rc40EAu7LRBPcEVKyE1naZ">write_text(encoding=...)</code> 的修改是正确的，但同一批改动把该参数误加到了 <code data-page-node-id="4UEi71CcjzEaWOjBgQ4MIR">str.join()</code>、<code data-page-node-id="jyZALTGVA2pJWHgwpjiU4Y">str()</code>、<code data-page-node-id="vGl4lNuuFBhxRoqdpOxtFd">json.dumps()</code> 上。仓库 HEAD 中这三处均为正确写法。</p>
+  <pre data-page-node-id="Ltf0S2qE6HlrBfHxo7T0hg">src/kyle_agent/oncall/sim.py:124
+<span class="del" data-page-node-id="2MxoFr8hIYRg9SXrdT5y3G">- log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")</span>
+<span class="add" data-page-node-id="IrsftRdAQB9cH6EUFRb7Dt">+ log_path.write_text("\n".join(lines, encoding="utf-8") + "\n", encoding="utf-8")</span>
+  TypeError: str.join() takes no keyword arguments
+  触发条件：baseline/logs/*.log 存在时，SimEnv.reset → _materialize_timestamps 必崩。
+  影响面：50 项单测失败（oncall 全族 + task_manager 1 项）。
+
+src/kyle_agent/cli/commands/core.py:88
+<span class="del" data-page-node-id="ehakSEIO49H4pjETDMkn5H">- _PID_FILE.write_text(str(proc.pid))</span>
+<span class="add" data-page-node-id="Gaf9XIROivtAnoaqeHGOvy">+ _PID_FILE.write_text(str(proc.pid, encoding="utf-8"))</span>
+  TypeError: str() 不接受 encoding 关键字（且 proc.pid 为 int 而非 bytes）。
+  影响面：kyle core start 写 pid 文件时崩溃，daemon 启动链路受损。
+
+src/kyle_agent/core/task/manager.py:115
+<span class="del" data-page-node-id="EpsyPhHDm1CmPhnxIEmgmd">- f.write_text(json.dumps(data, indent=2, ensure_ascii=False))</span>
+<span class="add" data-page-node-id="w4x6oOtOwr1lqUNC7XNr1j">+ f.write_text(json.dumps(data, indent=2, ensure_ascii=False, encoding="utf-8"))</span>
+  TypeError: json.dumps() 无 encoding 参数。
+  影响面：_clear_dependency 路径，test_update_completed_clears_dependency 失败。</pre>
+  <p style="margin:12px 0 0" data-page-node-id="bQlFkRejnr82glM3xnTGm6"><strong data-page-node-id="1ip1dF1mJpr1qXU5m1Lia2">确定性复现（不依赖覆盖率环境）：</strong>构造含 <code data-page-node-id="HccZkSMfs9BKWlczGZSE3R">app.log</code> 的临时环境目录并调用 <code data-page-node-id="iC9IDkq2QiuUIDQctin3PG">SimEnv._materialize_timestamps()</code>，原生解释器稳定抛出 <code data-page-node-id="VmphFmPcznPCqGgShkLfRE">TypeError: str.join() takes no keyword arguments</code>；单独运行 <code data-page-node-id="vPYehP0DzXrLo2mxGKNMui">tests/unit/test_oncall_bridge_api.py</code> 为 2 failed / 1 passed。</p>
+</div>
+
+<div class="card" data-page-node-id="230Zg40oxkVaSEW8tuKIBJ">
+  <span class="tag t-warn" data-page-node-id="4coVLFdwDmTqI4P4KsP5DB">P2 · 质量</span> &nbsp;<strong data-page-node-id="UP0NPhxK0sADCrLxcbImRj">覆盖率与门禁工具链</strong>
+  <ul data-page-node-id="OTcDiStAiznYfmRul9vDrK">
+    <li data-page-node-id="vk3kPsip66ZIO1tlyojCnU">单测对 src 行覆盖率 67%（5870 语句 / 1951 未覆盖），43 个文件达到 100%。低覆盖模块：<code data-page-node-id="3I6VFXftrz2BpyCio5EHzz">tui/app.py</code> 32%、<code data-page-node-id="tLyGxIm77ItsqFp13XkB6a">transport/socket_server.py</code> 50%、<code data-page-node-id="7fXDD0CbyGxx50z5C9yxBb">webui/bridge.py</code> 56%、<code data-page-node-id="Chfuue2QovU7ImFgGzDBHz">task_update.py</code> 52%、<code data-page-node-id="yNgWcp67SUqt7ugAAZe4ey">task_create.py</code> 55%。</li>
+    <li data-page-node-id="1AfDkPRrPrAakQwPvBJbIU">dev 依赖未包含 <code data-page-node-id="mr9ulFPVjqOtHBxVbjWMct">pytest-cov</code> / <code data-page-node-id="q9DBw7eedNp06l3czCs9En">coverage</code>，覆盖率需通过 <code data-page-node-id="YGZ7NwGD4IwOipWVwbkbaF">uv run --with</code> 临时安装；本次数值含 50 项失败用例，偏低，应在修复后重新采集。</li>
+    <li data-page-node-id="WR0GhvEu480UgXluqwK23v"><code data-page-node-id="BoKx46kmrtB96vp4VTE7vq">pytest-cov</code> 的 <code data-page-node-id="kA5IYdpVP6BESaq6gpEK9H">combine()</code> 阶段删除临时数据文件时触发沙箱批量删除守卫，导致 INTERNALERROR；改用 <code data-page-node-id="MvQNT5h50PD59BE9f3fQrT">coverage run</code> 可绕过，属环境限制而非代码缺陷。</li>
+  </ul>
+</div>
+
+<div class="card" data-page-node-id="9Jm0NQzVYXlCxUL8m6UvRc">
+  <span class="tag t-warn" data-page-node-id="wgE2mEXdKlxM1nlQi5FPdd">P3 · 规范与文档</span>
+  <ul data-page-node-id="7nqCljhwFZx4RynyxKxNv1">
+    <li data-page-node-id="lyLMinBe5rB8UdhI1rSqRH">396 个测试函数中 13 个缺少 <code data-page-node-id="oEhiYAn4g1W6w6HHlPoVNp"># 功能:</code> / <code data-page-node-id="95c6v4OMBHLOLGKKI1JyIX"># 设计:</code> 两行注释，集中在集成测试与 oncall 相关用例；src 中 439 个 def 有 62 个上一行无中文注释（符合率 85.9%）。</li>
+    <li data-page-node-id="zTgwO5uXZkb0494QwtonBK">README.md:14 与工作区 AGENTS.md 均记载「449 项测试（398 单测 + 51 集成）」，实测为 450（399 + 51），文档滞后 1 项。</li>
+    <li data-page-node-id="Xa1aV3wKeip6zB6DGi2Ayh"><code data-page-node-id="CJjGXXhBB9gAWHLwe0wgB7">kyle-core --help</code> 不输出帮助而是启动常驻 daemon，与其余三个 CLI 入口行为不一致。</li>
+    <li data-page-node-id="qsW1wklteOvefWVRYixg10">仓库 HEAD 跟踪了 <code data-page-node-id="wirTMPGCLBCWuBBeiB7kK1">.coverage.Kyle.pid32472.XZU5nPAx.HbuEGZzuWATh</code> 等覆盖率数据文件，建议补入 .gitignore 并清理。</li>
+  </ul>
+</div>
+
+<h2 data-page-node-id="1uFGbqvzbgioaywRl2i27D">四、结论与建议</h2>
+<div class="card" data-page-node-id="BRANyooltZxnVnJq9vRN4Z">
+  <ul data-page-node-id="TQoS0bpZUBFAYCcf9wPBCB">
+    <li data-page-node-id="3WGAXVhDnHNuKepbrEEHni"><strong data-page-node-id="cFwJjXlToZUUFf8ogFJfwi">基线判定：</strong>干净 HEAD 版本全绿，450/450 测试通过，静态检查、协议文档、评测回归门禁、构建均通过，可作为发布基线。</li>
+    <li data-page-node-id="N7TcGd1ttnqnGbhQ95h27A"><strong data-page-node-id="okgkCkC2DdVBGbY0AM4KGX">当前工作区判定：</strong>阻断。3 处 <code data-page-node-id="jXn7UjPTzDedIg2ohxw8EE">encoding=</code> 误改使单测 50 项失败；集成测试与评测回放未在该状态下复跑，但 oncall 相关链路预计同样受影响。</li>
+    <li data-page-node-id="XfrfbDRAb0yI7COGqi4622"><strong data-page-node-id="tf2Yd5HVnUgNBIFRZVl95D">建议顺序：</strong>① 撤回三处误加的参数，保留 <code data-page-node-id="nyj61EkfbGyNPbtrOr6Mj0">read_text</code> / <code data-page-node-id="CyGFcbcVdlknfDFYNIxfWF">write_text</code> 的 utf-8 修正；② 重跑 <code data-page-node-id="EFIjiuWIeH90kQIiQQiemN">pytest tests/unit -q</code> 与 <code data-page-node-id="tyiHg9fPF7QHj2c9V10hU7">run_evals.py --replay --suite all</code>；③ 恢复干净状态后重新采集覆盖率；④ 按项目约定同步 README / AGENT.md 的测试数量；⑤ 将覆盖率工具纳入 dev 依赖以便 CI 采集。</li>
+    <li data-page-node-id="QCzqUewWdaYYTTbXQD0fkc"><strong data-page-node-id="TTkRhGSSzsLJSZAVQNYWjb">未覆盖项：</strong>集成测试未纳入覆盖率统计（daemon 子进程需 concurrency 配置）；tests 目录存量 mypy 类型错误按项目约定未处理；真实 API E2E 结果受网络策略影响可能波动。</li>
+  </ul>
+</div>
+
+<div class="foot" data-page-node-id="nhYX97Yv0YlUMXBC8UaFtr">测试过程中产生的 <code data-page-node-id="TNwE2FHPdfIGsXgJErD0tU">.coverage</code> 临时文件已清理；覆盖率采集期间误删的已跟踪数据文件已用 <code data-page-node-id="Q0Ys5ZuoJClOEF4G4c9Aix">git restore</code> 恢复。最终工作区仅保留使用者自身的 4 个未提交改动，未修改任何源代码。</div>
+
+</div>
+</body>
+</html>

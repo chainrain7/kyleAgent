@@ -50,7 +50,7 @@ def _running_pid() -> int | None:
     if not _PID_FILE.exists():
         return None
     try:
-        pid = int(_PID_FILE.read_text().strip())
+        pid = int(_PID_FILE.read_text(encoding="utf-8").strip())
     except ValueError:
         _PID_FILE.unlink(missing_ok=True)
         return None
