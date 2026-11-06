@@ -279,13 +279,15 @@ def main() -> None:
         if not output_path.exists():
             print(f"ERROR: {output_path} not found — run: make docs", file=sys.stderr)
             sys.exit(1)
-        if output_path.read_text() != content:
+        # 显式 UTF-8:windows runner locale 是 cp1252,无 encoding 的 read_text
+        # 会把 UTF-8 协议文档误读为乱码,与生成文本不等 → 假性 out of sync
+        if output_path.read_text(encoding="utf-8") != content:
             print(f"ERROR: {output_path} out of sync with code — run: make docs", file=sys.stderr)
             sys.exit(1)
         print(f"OK: {output_path} is up to date.")
     else:
         output_path = Path(args.output)
-        output_path.write_text(content, newline="\n")
+        output_path.write_text(content, encoding="utf-8", newline="\n")
         print(f"Generated {output_path}")
 
 
