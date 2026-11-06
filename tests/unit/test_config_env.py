@@ -85,3 +85,24 @@ def test_priority_chain_full(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     cfg = get_config()
 
     assert cfg.port == 8000
+
+
+# 功能：验证知识库目录有内建默认值 ~/.kyle/knowledge
+# 设计：不设置任何变量时构造配置，断言 knowledge.dir 默认指向用户家目录约定位置
+def test_knowledge_dir_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("KYLE_KNOWLEDGE_DIR", raising=False)
+
+    cfg = get_config()
+
+    assert cfg.knowledge.dir == "~/.kyle/knowledge"
+
+
+# 功能：验证 KYLE_KNOWLEDGE_DIR 环境变量覆盖知识库目录
+# 设计：设置环境变量后断言 knowledge.dir 生效——容器/评测场景依赖该开关重定向,
+#       与 oncall.env_dir 的环境变量通道保持同款模式
+def test_knowledge_dir_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KYLE_KNOWLEDGE_DIR", str(tmp_path / "kb"))
+
+    cfg = get_config()
+
+    assert cfg.knowledge.dir == str(tmp_path / "kb")

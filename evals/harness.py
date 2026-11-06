@@ -30,7 +30,8 @@ from scripts.run_metrics import compute_metrics  # noqa: E402
 # 评测预授的工具全集(基础 + oncall 领域工具;预授即"审批由断言替代")
 ALL_TOOL_NAMES: tuple[str, ...] = (
     "read_file", "bash", "write_file", "list_dir", "web_search",
-    "note_save", "task_create", "task_update", "task_list", "task_get",
+    "note_save", "knowledge_save", "knowledge_search",
+    "task_create", "task_update", "task_list", "task_get",
     "spawn_agent", "agent_result", "orchestrate_run",
     "alerts_list", "service_status", "logs_query", "metrics_query",
     "runbook_search", "service_restart", "scale_up", "log_cleanup",
@@ -95,6 +96,10 @@ async def run_task(
     config.agent.max_steps = task.max_steps
     config.compaction.auto_threshold = 0.0
     config.memory.enabled = False  # 评测确定性:不注入跨会话记忆
+    # 评测确定性:知识库目录强制隔离到任务根(生产默认 ~/.kyle/knowledge,若本机
+    # 该目录有文件,runbook_search/knowledge_search 的回放语料会与录制时不一致
+    # 导致检索输出发散);放在 config_patch 之前,允许任务级覆盖
+    config.knowledge.dir = str(root / task.id / "knowledge")
     if task.config_patch is not None:
         task.config_patch(config, root / task.id)
 

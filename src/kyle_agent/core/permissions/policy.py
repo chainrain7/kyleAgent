@@ -55,6 +55,9 @@ DEFAULT_POLICIES: dict[str, ToolPolicy] = {
     "read_file":  ToolPolicy(default=PermissionDecision.ALLOW),
     "list_dir":   ToolPolicy(default=PermissionDecision.ALLOW),
     "note_save":  ToolPolicy(default=PermissionDecision.ALLOW),
+    # 知识库:写入范围被限制在配置目录 + 净化文件名(无任意路径),检索纯只读
+    "knowledge_save":   ToolPolicy(default=PermissionDecision.ALLOW),
+    "knowledge_search": ToolPolicy(default=PermissionDecision.ALLOW),
 }
 
 # 未在 DEFAULT_POLICIES 中登记的工具的兜底策略
@@ -71,6 +74,7 @@ _PREVIEW_KEY: dict[str, str] = {
     "write_file": "path",
     "list_dir":   "path",
     "note_save":  "content",
+    "knowledge_save": "title",
 }
 _PREVIEW_MAX = 60
 

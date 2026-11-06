@@ -3,7 +3,8 @@
 vector:查询嵌入 → 余弦 top-k(chunk 级),按文档去重后返回文档全文;
 hybrid:余弦召回 top-8 → rerank 融合词面信号 → 取 top-k;
 keyword:保留改造前的整篇关键词打分逻辑(输出逐字节兼容)。
-索引按目录内容 hash 缓存,进程内单例复用(文件只读,重建仅发生在内容变化时)。
+索引按目录元组 + embedder 缓存,进程内单例复用;get() 比对目录
+(文件名, mtime_ns)快照,文件写入/修改/删除后自动丢弃重建。
 哈希嵌入配合库级 IDF:构建时按 chunk 文档频率统计 idf 并注入 embedder/rerank,
 抑制高频汉字噪声(实测不加权时"完全无关的量子物理问题"噪声分可反超真命中)。
 """
@@ -12,7 +13,6 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
-from hashlib import blake2b
 from pathlib import Path
 from typing import ClassVar
 
@@ -30,47 +30,74 @@ _HYBRID_RECALL = 8
 
 
 class RunbookIndex:
-    """runbook 知识库索引:懒构建 chunk 向量库 + 整篇文档表(keyword 模式用)。"""
+    """runbook/知识库索引:懒构建 chunk 向量库 + 整篇文档表(keyword 模式用)。
 
-    # 进程内单例缓存:key = (目录, 内容 hash, embedder 标识)
-    _CACHE: ClassVar[dict[tuple[str, str, str], RunbookIndex]] = {}
+    支持单目录(向后兼容)或多目录合并源;多目录时 chunk source 带
+    父目录名前缀区分来源,单目录保持纯文件名(评测与调用方兼容)。
+    """
 
-    # 绑定目录与嵌入器;索引延迟到首次 search 才构建
-    def __init__(self, runbooks_dir: Path, embedder: EmbeddingProvider) -> None:
-        self._dir = runbooks_dir
+    # 进程内单例缓存:key = (排序后的 resolved 目录元组, embedder 标识)
+    _CACHE: ClassVar[dict[tuple[tuple[str, ...], str], RunbookIndex]] = {}
+
+    # 绑定目录列表与嵌入器;单 Path 入参归一化为单元素列表;索引延迟到首次 search
+    def __init__(
+        self, runbooks_dir: Path | list[Path], embedder: EmbeddingProvider
+    ) -> None:
+        self._dirs: list[Path] = (
+            [runbooks_dir] if isinstance(runbooks_dir, Path) else list(runbooks_dir)
+        )
         self._embedder = embedder
         self._store: VectorStore | None = None
-        self._docs: list[tuple[str, str, str]] = []  # (文件名, 标题, 全文)
+        self._docs: list[tuple[str, str, str]] = []  # (来源标签, 标题, 全文)
         self._idf: dict[str, float] = {}
+        # get() 时刻的目录快照(resolved 目录 → 文件名 → mtime_ns),用于过期检测
+        self._snapshot: dict[str, dict[str, int]] = {}
 
-    # 工厂:按目录内容 hash 取进程内单例,内容变化自动换新索引
+    # 扫描各目录的 (文件名 → mtime_ns) 快照;目录不存在按空快照处理
+    def _current_snapshot(self) -> dict[str, dict[str, int]]:
+        snap: dict[str, dict[str, int]] = {}
+        for d in self._dirs:
+            key = str(d.resolve())
+            files = sorted(d.glob("*.md")) if d.is_dir() else []
+            snap[key] = {p.name: p.stat().st_mtime_ns for p in files}
+        return snap
+
+    # 工厂:按目录元组 + embedder 取进程内单例;缓存实例的目录快照与当前
+    # 文件系统不一致时丢弃重建——写入/修改/删除文件后同进程内下次 get
+    # 即感知,knowledge_save 无需显式失效,外部手写文件同样被感知
     @classmethod
-    def get(cls, runbooks_dir: Path, embedder: EmbeddingProvider) -> RunbookIndex:
-        digest = blake2b(digest_size=16)
-        for path in sorted(runbooks_dir.glob("*.md")):
-            digest.update(path.name.encode("utf-8"))
-            digest.update(b"\x00")
-            digest.update(path.read_bytes())
-        content_hash = digest.hexdigest()
+    def get(
+        cls, runbooks_dir: Path | list[Path], embedder: EmbeddingProvider
+    ) -> RunbookIndex:
+        dirs: list[Path] = (
+            [runbooks_dir] if isinstance(runbooks_dir, Path) else list(runbooks_dir)
+        )
         key = (
-            str(runbooks_dir.resolve()),
-            content_hash,
+            tuple(sorted(str(d.resolve()) for d in dirs)),
             f"{embedder.name}:{embedder.dim}",
         )
-        if key not in cls._CACHE:
-            cls._CACHE[key] = cls(runbooks_dir, embedder)
-        return cls._CACHE[key]
+        cached = cls._CACHE.get(key)
+        if cached is not None and cached._current_snapshot() == cached._snapshot:
+            return cached
+        index = cls(dirs, embedder)
+        index._snapshot = index._current_snapshot()
+        cls._CACHE[key] = index
+        return index
 
-    # 懒构建:扫描文档 → 分片 → 统计 IDF → 嵌入 → 入库(仅首次查询执行一次)
+    # 懒构建:扫描文档 → 分片 → 统计 IDF → 嵌入 → 入库(仅首次查询执行一次);
+    # 多目录合并时来源标签带父目录名前缀,单目录保持纯文件名
     def _ensure_built(self) -> None:
         if self._store is not None:
             return
         docs: list[tuple[str, str, str]] = []
         chunks: list[Chunk] = []
-        for path in sorted(self._dir.glob("*.md")):
-            text = path.read_text(encoding="utf-8")
-            docs.append((path.name, path.stem.replace("-", " "), text.strip()))
-            chunks.extend(chunk_markdown(text, path.name))
+        multi = len(self._dirs) > 1
+        for d in self._dirs:
+            for path in sorted(d.glob("*.md")):
+                label = f"{path.parent.name}/{path.name}" if multi else path.name
+                text = path.read_text(encoding="utf-8")
+                docs.append((label, path.stem.replace("-", " "), text.strip()))
+                chunks.extend(chunk_markdown(text, label))
         store = VectorStore()
         if chunks:
             idf = _build_idf(chunks)
@@ -213,6 +240,6 @@ def _lexical_overlap(
     return sum(idf.get(t, 1.0) for t in common)
 
 
-# 快捷工厂:本地确定性嵌入器的 runbook 索引单例
-def local_runbook_index(runbooks_dir: Path) -> RunbookIndex:
+# 快捷工厂:本地确定性嵌入器的 runbook 索引单例(单目录或多目录列表)
+def local_runbook_index(runbooks_dir: Path | list[Path]) -> RunbookIndex:
     return RunbookIndex.get(runbooks_dir, HashingEmbedder())

@@ -103,3 +103,59 @@ def test_unknown_mode_raises() -> None:
         assert "keyword|vector|hybrid" in str(e)
     else:
         raise AssertionError("expected ValueError")
+
+
+# 功能:多目录合并源的双源命中(source 带父目录名前缀区分来源)
+# 设计:tmp 两个目录各放一篇含独特 token 的文档,两个查询分别命中各自源,
+#       断言多目录来源标签为 "父目录名/文件名"——检索结果可归因到目录
+def test_multi_dir_merge_hits_both_sources(tmp_path: Path) -> None:
+    dir_a = tmp_path / "alpha-docs"
+    dir_b = tmp_path / "beta-docs"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "alpha-guide.md").write_text(
+        "# Alpha guide\n\nuse token ALPHA-77 to calibrate\n", encoding="utf-8"
+    )
+    (dir_b / "beta-guide.md").write_text(
+        "# Beta guide\n\nuse token BETA-99 to calibrate\n", encoding="utf-8"
+    )
+    idx = local_runbook_index([dir_a, dir_b])
+    hit_a = idx.search("ALPHA-77", mode="keyword")
+    hit_b = idx.search("BETA-99", mode="keyword")
+    assert hit_a[0].source == "alpha-docs/alpha-guide.md"
+    assert hit_b[0].source == "beta-docs/beta-guide.md"
+    assert "ALPHA-77" in hit_a[0].content
+    assert "BETA-99" in hit_b[0].content
+
+
+# 功能:同进程内写入新文件后再次 get 自动重建(过期检测:mtime 快照比对)
+# 设计:先建索引确认新 token 不可见 → 写入新文件 → 再次 get 返回新索引且
+#       新 token 可检索;稳定后再 get 复用同一实例——knowledge_save 无需
+#       显式失效,外部手写文件同样被感知
+def test_rebuild_after_write_in_same_process(tmp_path: Path) -> None:
+    kb = tmp_path / "kb"
+    kb.mkdir()
+    (kb / "old-doc.md").write_text("legacy token OLD-1\n", encoding="utf-8")
+
+    first = local_runbook_index(kb)
+    assert first.search("NEW-2", mode="keyword") == []
+    assert first.search("OLD-1", mode="keyword")
+
+    (kb / "new-doc.md").write_text("fresh token NEW-2\n", encoding="utf-8")
+    second = local_runbook_index(kb)
+    assert second is not first
+    hits = second.search("NEW-2", mode="keyword")
+    assert hits and hits[0].source == "new-doc.md"
+
+    third = local_runbook_index(kb)
+    assert third is second
+
+
+# 功能:单目录来源标签保持纯文件名(向后兼容 eval_rag 与既有调用方)
+# 设计:单目录 get 后对真实 runbook 检索,断言 source 不带目录前缀——
+#       eval_rag 的命中判定依赖 source == 标注文件名
+def test_single_dir_source_label_unchanged() -> None:
+    idx = local_runbook_index(_RUNBOOKS)
+    res = idx.search("内存 上涨 OOM", mode="keyword", top_k=3)
+    assert res, "预期至少命中一篇 runbook"
+    assert res[0].source == "memory-leak.md"

@@ -107,6 +107,12 @@ class RagConfig:
 
 
 @dataclass
+class KnowledgeConfig:
+    # 运行时知识库目录:knowledge_save 写入、knowledge_search/runbook_search 检索
+    dir: str = "~/.kyle/knowledge"
+
+
+@dataclass
 class McpServerConfig:
     name: str
     transport: str = "stdio"       # "stdio" | "tcp"
@@ -136,6 +142,7 @@ class KyleConfig:
     oncall: OncallConfig = field(default_factory=OncallConfig)
     orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
     rag: RagConfig = field(default_factory=RagConfig)
+    knowledge: KnowledgeConfig = field(default_factory=KnowledgeConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
 
 
@@ -173,7 +180,7 @@ def get_config() -> KyleConfig:
 def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
     known = {
         "core", "logging", "agent", "llm", "trace", "permission", "compaction",
-        "memory", "oncall", "orchestration", "rag", "mcp",
+        "memory", "oncall", "orchestration", "rag", "knowledge", "mcp",
     }
     unknown = set(data.keys()) - known
     if unknown:
@@ -441,6 +448,19 @@ def _apply_toml(config: KyleConfig, data: dict[str, Any]) -> None:
                     raise SystemExit(f"Config error: rag.{key} must be a string")
                 setattr(config.rag, key, val)
 
+    if "knowledge" in data:
+        kb = data["knowledge"]
+        if not isinstance(kb, dict):
+            raise SystemExit("Config error: [knowledge] must be a table")
+        unknown_kb: set[str] = set(kb.keys()) - {"dir"}
+        if unknown_kb:
+            raise SystemExit(f"Unknown [knowledge] keys: {', '.join(sorted(unknown_kb))}")
+        if "dir" in kb:
+            val = kb["dir"]
+            if not isinstance(val, str):
+                raise SystemExit("Config error: knowledge.dir must be a string")
+            config.knowledge.dir = val
+
     if "mcp" in data:
         mcp = data["mcp"]
         if not isinstance(mcp, dict):
@@ -650,6 +670,10 @@ def _apply_env(config: KyleConfig) -> None:
     rag_cache_dir = os.environ.get("KYLE_RAG_EMBEDDING_CACHE_DIR")
     if rag_cache_dir is not None:
         config.rag.cache_dir = rag_cache_dir
+
+    kb_dir = os.environ.get("KYLE_KNOWLEDGE_DIR")
+    if kb_dir is not None:
+        config.knowledge.dir = kb_dir
 
     orch_max_str = os.environ.get("KYLE_ORCHESTRATION_MAX_ITERATIONS")
     if orch_max_str is not None:

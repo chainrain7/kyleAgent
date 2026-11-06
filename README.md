@@ -49,8 +49,9 @@ uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
 - **多后端接入**：`llm.provider = "anthropic" | "openai"`；OpenAI 兼容端点（DeepSeek `/v1`、vLLM、Ollama 等）的消息格式翻译在 provider 边界完成，核心循环零感知
 - **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
 - **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
-- **评测体系**：11 个确定性任务集（终态断言、不依赖 LLM 打分；oncall 套件另有 20 剧本，`--suite all` 共 31）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
+- **评测体系**：12 个确定性任务集（终态断言、不依赖 LLM 打分；oncall 套件另有 20 剧本，`--suite all` 共 32）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
 - **向量 RAG 检索**：`core/rag/` 通用管道（分片→嵌入→召回→重排，零第三方依赖）；确定性哈希嵌入（blake2b 特征哈希 + 库级 IDF + sublinear tf，跨进程逐位一致）或 OpenAI 兼容嵌入端点（磁盘缓存）；`runbook_search` 工具三模式（keyword/vector/hybrid）输出形状一致，36 条标注查询离线评测（`scripts/eval_rag.py`），无匹配按词面证据判定
+- **运行时知识库**：`knowledge_save` 把 markdown 文档沉淀到 `knowledge.dir`（默认 `~/.kyle/knowledge`，标题净化为安全文件名且中文原样保留、同题覆写幂等），`knowledge_search` 对知识库三模式检索（复用 rag 管道）；`runbook_search` 检索源合并为「内建 runbooks + 用户知识库」（输出形状零变化，空知识目录为严格 no-op）；索引按目录 `(文件名, mtime_ns)` 快照自动过期重建，写入后无需显式失效
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
 - **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
 - **durable run**：每步快照 run_state.json，daemon 崩溃重启后自动从断点步续跑（工具 at-least-once，终态快照不重复恢复）
@@ -170,6 +171,9 @@ embedding_model    = ""       # openai 模式必填
 embedding_api_key  = ""       # 缺省回退读 KYLE_RAG_EMBEDDING_API_KEY
 cache_dir          = "~/.kyle/cache/embeddings"  # API 嵌入磁盘缓存
 
+[knowledge]
+dir = "~/.kyle/knowledge"     # 运行时知识库目录（knowledge_save 写入 / 两检索工具读取）
+
 [[mcp.servers]]             # 数组，可声明多个 MCP server
 name = "filesystem"
 transport = "stdio"         # "stdio" | "tcp"
@@ -215,6 +219,7 @@ args = ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
 | `rag.embedding_model` | str | `` | `KYLE_RAG_EMBEDDING_MODEL` |
 | `rag.embedding_api_key` | str | `` | `KYLE_RAG_EMBEDDING_API_KEY` |
 | `rag.cache_dir` | str | `~/.kyle/cache/embeddings` | `KYLE_RAG_EMBEDDING_CACHE_DIR` |
+| `knowledge.dir` | str | `~/.kyle/knowledge` | `KYLE_KNOWLEDGE_DIR` |
 
 另外：`KYLE_CONFIG` 覆盖配置文件路径；`ANTHROPIC_API_KEY`（通常放在 `.env`）是 Anthropic 后端的必要凭据；`llm.provider = "openai"` 时改用 `OPENAI_API_KEY`（可选 `OPENAI_BASE_URL`，如 `https://api.deepseek.com/v1`）。`web_search` 的 JSON 后端用 `KYLE_SEARCH_API_KEY` + `KYLE_SEARCH_ENDPOINT` 配置，不配置则使用免 key 的 DuckDuckGo 后端。
 
@@ -255,7 +260,7 @@ uv run kyle-tui         # TUI 多轮会话（主前端）
 | `n` / `3` | deny once | 本次拒绝 |
 | `d` / `4` | always deny | 本 session 拒绝并持久化 |
 
-`read_file`、`list_dir`、`note_save` 默认放行；`bash`、`write_file`、`web_search` 与未登记工具默认询问（`web_search` 只读但把查询外发到第三方服务，与 bash 同级对待）。`bash` 命令疑似操作 cwd 之外路径时（绝对路径、`~`、`..`、`$HOME`、`cd` 等）无条件强制询问。审批超时（默认 60 秒）视为拒绝。
+`read_file`、`list_dir`、`note_save`、`knowledge_save`、`knowledge_search` 默认放行（knowledge_save 的写入范围被限制在 `knowledge.dir` 配置目录 + 净化文件名，无任意路径写入面）；`bash`、`write_file`、`web_search` 与未登记工具默认询问（`web_search` 只读但把查询外发到第三方服务，与 bash 同级对待）。`bash` 命令疑似操作 cwd 之外路径时（绝对路径、`~`、`..`、`$HOME`、`cd` 等）无条件强制询问。审批超时（默认 60 秒）视为拒绝。
 
 ### 手动压缩上下文
 
@@ -446,7 +451,7 @@ kyleCode/
 │   ├── core/           # kyle-core daemon
 │   │   ├── bus/        #   JSON-RPC 信封与命令/事件模型（IPC 协议契约）
 │   │   ├── transport/  #   TCP NDJSON server / client 与事件广播
-│   │   ├── tools/      #   内建工具与 ToolRegistry
+│   │   ├── tools/      #   内建工具与 ToolRegistry（bash/read/write/note_save/knowledge_save/knowledge_search 等）
 │   │   ├── permissions/#   权限策略评估、审批管理、policy.toml 持久化
 │   │   ├── session/    #   SessionManager / SessionStore（thread、notes、meta）
 │   │   ├── compact/    #   上下文压缩与 tool_result 截断
@@ -511,6 +516,17 @@ kyleCode/
 
 `oncall.runbook_search` 三模式输出形状完全一致(仍是 top-3 篇 runbook 全文),
 只改"选哪 3 篇"的逻辑;`keyword` 模式与改造前逐字节一致(测试锁定)。
+
+**检索源合并与运行时知识库**:`RunbookIndex` 支持多目录源(单 `Path` 入参
+向后兼容),`runbook_search` 的语料 = 内建 9 篇 runbooks + `knowledge.dir`
+用户知识库(多目录时来源标签带父目录名前缀);知识目录为空时合并是严格
+no-op(`test_merge_empty_knowledge_is_noop` 三模式逐项锁定,守护 oncall
+cassette 回放安全)。索引过期检测按各目录 `(文件名, mtime_ns)` 快照——
+`knowledge_save` 写入或外部手写文件后,同进程内下次检索自动重建,无需显式
+失效。`knowledge_search` 工具仅检索知识库目录(oncall 域语料不混入),
+参数 `mode` 支持 keyword/vector/hybrid,输出形状与 `runbook_search` 一致。
+评测 harness 在 `config_patch` 之前把 `knowledge.dir` 强制隔离到任务根目录,
+保证录制/回放语料一致(本机真实 `~/.kyle/knowledge` 不会泄漏进回放)。
 
 检索质量评测(`uv run python scripts/eval_rag.py`,离线零 Key 真跑,
 标注集 [evals/rag_queries.json](evals/rag_queries.json):9 篇 × 4 条,

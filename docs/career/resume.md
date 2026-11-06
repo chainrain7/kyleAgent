@@ -58,6 +58,27 @@
 >   必败";verify 断言两道闸门产物正确 + check.py 真跑通过 + 事件流含 ≥2 次
 >   规划子代理启动(replan 实证),cassette 录制/回放进 CI 门禁。
 
+## 1.7 运行时知识库闭环(检索语料从只读到可沉淀)
+
+> - **给 Agent 补上写入面**:此前检索语料硬编码为 9 篇包内 runbook,纯只读,
+>   Agent 处置出的新经验无处沉淀。新增 `knowledge_save` / `knowledge_search`
+>   两个工具:markdown 文档写入 `knowledge.dir`(默认 `~/.kyle/knowledge`),
+>   标题净化为跨平台安全文件名(**CJK 原样保留**,非法字符替换连字符、80 字符
+>   上限),同题覆写幂等——回放重执行不炸;写入面被限制在配置目录 + 净化
+>   文件名,无任意路径,与 note_save 同级默认放行;
+> - **检索源合并 + 自动过期重建**:`RunbookIndex` 升级为多目录源(单目录
+>   入参向后兼容),`runbook_search` 语料变为「内建 runbooks + 用户知识库」,
+>   **输出格式零变化**——空知识目录时合并是严格 no-op(三模式逐项相等测试
+>   锁死),守护既有 20 条 oncall cassette 的回放安全;索引过期检测用各目录
+>   `(文件名, mtime_ns)` 快照,写入后同进程内自动重建,无需显式 invalidate,
+>   外部手写文件同样被感知;顺带修掉 `RunbookSearchTool.__init__` 从未使用的
+>   `env_dir` 死参数;
+> - **评测确定性防护**:生产默认目录在本机若有文件,会使回放语料与录制时
+>   不一致、检索输出发散——harness 在 `config_patch` 之前把 `knowledge.dir`
+>   强制隔离到任务根(CI 与本机同防护);新增 `knowledge-save-retrieval`
+>   评测任务(独特 token 原文,save 幂等覆写 + search 重执行),cassette
+>   录制一次成功,全量回放 32/32,eval_rag 检索指标与改造前逐位一致。
+
 ## 2. 三分钟讲项目骨架
 
 1. **一句话定位**(10s):"值班工程师半夜收到告警,我的系统自动查日志查指标定位根因,

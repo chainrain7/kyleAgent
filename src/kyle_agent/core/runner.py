@@ -30,6 +30,8 @@ from kyle_agent.core.subagent.tool import AgentResultTool, SpawnAgentTool
 from kyle_agent.core.task.manager import TaskManager
 from kyle_agent.core.tools.builtin import (
     BashTool,
+    KnowledgeSaveTool,
+    KnowledgeSearchTool,
     ListDirTool,
     NoteSaveTool,
     ReadFileTool,
@@ -106,7 +108,16 @@ class AgentRunner:
             return allowed is None or name in allowed
 
         registry = ToolRegistry()
-        for t in [ReadFileTool(), BashTool(), WriteFileTool(), ListDirTool(), WebSearchTool()]:
+        for t in [
+            ReadFileTool(),
+            BashTool(),
+            WriteFileTool(),
+            ListDirTool(),
+            WebSearchTool(),
+            # 知识库写入/检索面:目录被限制在 config.knowledge.dir + 净化文件名,无任意路径
+            KnowledgeSaveTool(self._config),
+            KnowledgeSearchTool(self._config),
+        ]:
             if _ok(t.name):
                 registry.register(t)
         for t in [

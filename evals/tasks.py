@@ -218,6 +218,46 @@ def _verify_orchestrate_replan(**kw: Any) -> None:
     )
 
 
+# config_patch:把知识库目录指到任务工作区内(verify 可直接断言落盘文件;
+# harness 已先强制隔离到 root/task.id/knowledge,此处为任务级覆盖)
+def _patch_knowledge(config: Any, root: Path) -> None:
+    config.knowledge.dir = str(root / "workspace" / "knowledge")
+
+
+# knowledge-save-retrieval 的固定原文(症状/定位/处置各一句;
+# NOVA-77 与 KYLE-NOVA 是独特 token,与内建 9 篇 runbook 词面不撞车)
+_EXPERIENCE_DOC = (
+    "症状:网关 5xx 比例突增,错误日志出现上游返回码 NOVA-77,伴随少量超时。\n"
+    "定位:确认上游服务 KYLE-NOVA 的健康端点,比对发布时间线,锁定最近一次配置变更。\n"
+    "处置:回滚 KYLE-NOVA 的配置变更并灰度放量,5xx 恢复基线后观察 30 分钟。"
+)
+
+
+# 判定:knowledge-save-retrieval——文档已沉淀到知识库目录、save/search 均真实
+# 调用、检索输出命中独特标识、最终回答复述标题标识。
+# 确定性论证:setup 空工作区 → agent 用 knowledge_save 写入固定内容文档 →
+# 检索语料 = 9 内建 runbook + 1 新文档,keyword 检索确定性;回放时 save 幂等
+# 覆写、search 重执行,语料与录制时逐位一致
+def _verify_knowledge_save_retrieval(**kw: Any) -> None:
+    kb_dir = kw["workspace"] / "knowledge"
+    docs = list(kb_dir.glob("*.md"))
+    assert docs, "知识库目录下没有任何 .md 文档"
+    body = "".join(p.read_text(encoding="utf-8") for p in docs)
+    assert "NOVA-77" in body and "KYLE-NOVA" in body, (
+        f"知识库文档缺独特标识: {body[:200]!r}"
+    )
+    finished = [e for e in kw["events"] if e.get("type") == "tool.call_finished"]
+    assert any(
+        e.get("tool_name") == "knowledge_save" for e in finished
+    ), "事件流缺少 knowledge_save 的 tool.call_finished"
+    assert any(
+        e.get("tool_name") == "knowledge_search"
+        and "KYLE-NOVA" in str(e.get("output", ""))
+        for e in finished
+    ), "knowledge_search 的输出未命中 KYLE-NOVA"
+    mentions(kw["outcome"], "KYLE-NOVA")
+
+
 # ── 任务注册表 ────────────────────────────────────────────────────
 
 TASKS: list[EvalTask] = [
@@ -294,5 +334,19 @@ TASKS: list[EvalTask] = [
         ),
         setup=_setup_orchestrate_replan, verify=_verify_orchestrate_replan,
         note="引擎级 replan:评审未达成→证据回注重规划,须 ≥2 轮规划", max_steps=14,
+    ),
+    EvalTask(
+        id="knowledge-save-retrieval", category="memory",
+        goal=(
+            "把下面这篇排障经验用 knowledge_save 存入知识库"
+            "(title 用「网关5xx排障手册-KYLE-NOVA」,content 一字不改用原文),"
+            "然后用 knowledge_search 检索「网关 5xx KYLE-NOVA」确认能命中,"
+            "最后告诉我命中文档的标题。原文:\n"
+            f"{_EXPERIENCE_DOC}"
+        ),
+        setup=lambda ws: None, verify=_verify_knowledge_save_retrieval,
+        config_patch=_patch_knowledge,
+        note="运行时知识库闭环:knowledge_save 沉淀 → knowledge_search 命中",
+        max_steps=10,
     ),
 ]

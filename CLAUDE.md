@@ -51,12 +51,12 @@ kyle (CLI)   kyle-tui (TUI, S2+)
 
 **`kyle-tui` is the primary frontend.** All user-facing work on task management, observability, and interaction should be designed for and validated in the TUI first. The `kyle` CLI exists only for quick scripted testing and debugging — it is not a product surface. When implementing features that touch the user interface, invest in the TUI layout, event rendering, and keyboard interactions. Do not shortcut TUI work by pointing to the CLI as an alternative.
 
-### Current capability snapshot (2026-11-05, keep in sync with README)
+### Current capability snapshot (2026-11-06, keep in sync with README)
 
 Beyond the staged S0–S7 base, the runtime now ships:
 
-- **Evals** (`evals/` + `scripts/run_evals.py`): 11 base deterministic tasks
-  (31 total with the 20-scenario oncall suite, `--suite all`) judged by
+- **Evals** (`evals/` + `scripts/run_evals.py`): 12 base deterministic tasks
+  (32 total with the 20-scenario oncall suite, `--suite all`) judged by
   workspace end-state assertions; cassette record/replay gives offline, zero-key
   deterministic regression (CI gate: `tests/integration/test_eval_replay.py`).
   Changing tool *semantics* requires re-recording cassettes; new tasks require a
@@ -110,6 +110,25 @@ Beyond the staged S0–S7 base, the runtime now ships:
   literal/paraphrase); eval script: `scripts/eval_rag.py` (offline, zero key).
   Config keys `[rag]` (embedding_provider/base_url/model/api_key/cache_dir) —
   three-way sync in config.py dataclass + _apply_toml + _apply_env.
+- **Runtime knowledge base** (`knowledge_save` / `knowledge_search` tools,
+  both default-ALLOW): agents persist markdown documents into `knowledge.dir`
+  (default `~/.kyle/knowledge`, env `KYLE_KNOWLEDGE_DIR`); titles are sanitized
+  to safe file names (CJK preserved, unsafe chars → `-`, 80-char cap) and
+  same-title saves overwrite idempotently (replay-safe). `RunbookIndex` now
+  accepts a list of source dirs (single `Path` still supported — eval_rag and
+  existing callers unchanged) and `get()` detects staleness by comparing
+  per-dir `(file name, mtime_ns)` snapshots, so a write invalidates the
+  in-process cache without explicit invalidation (external hand-written files
+  are picked up too). `runbook_search` merges built-in runbooks + knowledge
+  dir as retrieval sources — tool name and output shape unchanged, and an
+  empty knowledge dir is a strict no-op (guarded by
+  `test_merge_empty_knowledge_is_noop` across all three modes); the
+  never-used `env_dir` param of `RunbookSearchTool.__init__` is removed.
+  Eval-harness determinism: `run_task` force-isolates `knowledge.dir` into
+  the task root BEFORE `config_patch` — a populated `~/.kyle/knowledge` on
+  the host would otherwise change the replay corpus vs recording and break
+  the oncall cassettes. Eval task `knowledge-save-retrieval` (cassette
+  recorded) proves the save→search round-trip end to end.
 - **OnCallCopilot** (Phases 0–4 landed): duty workbench on the Web Console — alert
   queue (click → canned diagnosis goal), service health polling (3s `/api/state`),
   drill panel (POST `/api/inject|reset`), impact-aware approval cards, report overlay
@@ -176,7 +195,7 @@ Four-tier priority: **built-in defaults → `~/.kyle/config.toml` → `.env` →
 
 S0 keys: `host` (default `127.0.0.1`), `port` (default `7437`), `log_level`, `log_file`. Config file is silently skipped if absent; unknown keys cause a hard exit.
 
-Relevant env vars: `KYLE_CONFIG`, `KYLE_HOST`, `KYLE_PORT`, `KYLE_LOG_LEVEL`, `KYLE_LOG_FILE`, `KYLE_LOG_FORMAT`, `KYLE_ORCHESTRATION_MAX_ITERATIONS`, `KYLE_TOOL_TIMEOUT_S`.
+Relevant env vars: `KYLE_CONFIG`, `KYLE_HOST`, `KYLE_PORT`, `KYLE_LOG_LEVEL`, `KYLE_LOG_FILE`, `KYLE_LOG_FORMAT`, `KYLE_ORCHESTRATION_MAX_ITERATIONS`, `KYLE_TOOL_TIMEOUT_S`, `KYLE_KNOWLEDGE_DIR`.
 
 ### Daemon entry (`src/kyle_agent/core/app.py`)
 

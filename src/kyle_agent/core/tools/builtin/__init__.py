@@ -1,4 +1,6 @@
 from kyle_agent.core.tools.builtin.bash import BashTool
+from kyle_agent.core.tools.builtin.knowledge_save import KnowledgeSaveTool
+from kyle_agent.core.tools.builtin.knowledge_search import KnowledgeSearchTool
 from kyle_agent.core.tools.builtin.list_dir import ListDirTool
 from kyle_agent.core.tools.builtin.note_save import NoteSaveTool
 from kyle_agent.core.tools.builtin.read_file import ReadFileTool
@@ -11,6 +13,8 @@ from kyle_agent.core.tools.builtin.write_file import WriteFileTool
 
 __all__ = [
     "BashTool",
+    "KnowledgeSaveTool",
+    "KnowledgeSearchTool",
     "ListDirTool",
     "NoteSaveTool",
     "ReadFileTool",

@@ -260,12 +260,12 @@ class RunbookSearchTool(BaseTool):
         "required": ["query"],
     }
 
-    # 绑定环境目录与配置(config 缺省时首次 invoke 惰性加载,避免启动期急切构建)
-    def __init__(self, env_dir: Path, config: Any | None = None) -> None:
-        self._env_dir = env_dir
+    # 绑定配置(config 缺省时首次 invoke 惰性加载,避免启动期急切构建)
+    def __init__(self, config: Any | None = None) -> None:
         self._config = config
 
     # 解析检索模式与嵌入器(local 哈希嵌入零依赖;openai 按配置构造,带磁盘缓存)
+    # 检索源 = 内建 runbooks + 用户知识库目录(空目录为空语料,合并结果不变);
     # 返回 (模式, 索引);索引为 rag.pipeline.RunbookIndex(惰性 import,注解用 Any)
     def _resolve_search(self) -> tuple[str, Any]:
         from kyle_agent.core.rag.embeddings import OpenAICompatEmbedder
@@ -277,6 +277,7 @@ class RunbookSearchTool(BaseTool):
 
             cfg = get_config()
         mode = cfg.oncall.runbook_search
+        sources = [_RUNBOOK_DIR, Path(cfg.knowledge.dir).expanduser()]
         if cfg.rag.embedding_provider == "openai":
             embedder = OpenAICompatEmbedder(
                 cfg.rag.embedding_base_url,
@@ -284,9 +285,9 @@ class RunbookSearchTool(BaseTool):
                 api_key=cfg.rag.embedding_api_key or None,
                 cache_dir=cfg.rag.cache_dir,
             )
-            index = RunbookIndex.get(_RUNBOOK_DIR, embedder)
+            index = RunbookIndex.get(sources, embedder)
         else:
-            index = local_runbook_index(_RUNBOOK_DIR)
+            index = local_runbook_index(sources)
         return mode, index
 
     # 三模式检索 runbook(输出形状统一:top-3 篇全文,与改造前一致)
@@ -588,7 +589,7 @@ def build_oncall_tools(env_dir: Path, config: Any | None = None) -> list[BaseToo
         ServiceStatusTool(env_dir),
         LogsQueryTool(env_dir),
         MetricsQueryTool(env_dir),
-        RunbookSearchTool(env_dir, config),
+        RunbookSearchTool(config),
         ServiceRestartTool(env_dir),
         ScaleUpTool(env_dir),
         LogCleanupTool(env_dir),

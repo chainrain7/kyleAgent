@@ -5,7 +5,7 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
-from kyle_agent.core.config import KyleConfig, OncallConfig
+from kyle_agent.core.config import KnowledgeConfig, KyleConfig, OncallConfig
 from kyle_agent.oncall.faults import BY_ID
 from kyle_agent.oncall.sim import SimEnv
 from kyle_agent.oncall.tools import build_oncall_tools
@@ -254,6 +254,50 @@ def test_oncall_permission_policies() -> None:
     for name in ("service_restart", "scale_up", "log_cleanup"):
         assert DEFAULT_POLICIES[name].default is PermissionDecision.ASK, name
         assert evaluate(name, {"service": "orders"}) is PermissionDecision.ASK, name
+
+
+# 功能:空知识目录时合并检索源是严格 no-op(防回归:oncall cassette 回放安全)
+# 设计:对「内建目录单源索引」与「内建+空知识目录合并索引」,在 keyword/vector/
+#       hybrid 三模式下同查询逐项比对 (source 的 basename, title, content)——
+#       空目录贡献零文档,合并不得改变返回集合、顺序与文本;source 按 basename
+#       归一比较多目录标签形式差异(多目录带父目录前缀是归因需求)
+def test_merge_empty_knowledge_is_noop(tmp_path: Path) -> None:
+    from kyle_agent.core.rag.pipeline import local_runbook_index
+
+    kb_dir = tmp_path / "knowledge"
+    kb_dir.mkdir()  # 存在但为空
+    single = local_runbook_index(_RUNBOOKS)
+    merged = local_runbook_index([_RUNBOOKS, kb_dir])
+    queries = ["内存 上涨 OOM", "证书 过期", "config validation", "zzz_unrelated_zzz"]
+    for query in queries:
+        for mode in ("keyword", "vector", "hybrid"):
+            a = single.search(query, mode=mode, top_k=3)
+            b = merged.search(query, mode=mode, top_k=3)
+            norm = lambda cs: [  # noqa: E731
+                (Path(c.source).name, c.title, c.content) for c in cs
+            ]
+            assert norm(a) == norm(b), f"query={query!r} mode={mode}"
+
+
+# 功能:知识库目录的文档可被 runbook_search 命中(检索源合并的行为证明)
+# 设计:知识目录放一篇含独特 token 的文档(词面与内建 9 篇不撞车),
+#       keyword 模式查询该 token 断言其全文进入输出——内建手册为空语料
+#       时(目录不存在)等价性已由 noop 测试与本文件 oracle 测试守护
+async def test_runbook_search_merges_knowledge_dir(tmp_path: Path) -> None:
+    kb_dir = tmp_path / "knowledge"
+    kb_dir.mkdir()
+    body = "RUNBOOK-MERGE-TOKEN-42\n处置:重启网关并回滚最近变更\n"
+    (kb_dir / "merge-proof.md").write_text(body, encoding="utf-8")
+    cfg = replace(
+        _cfg(),
+        knowledge=KnowledgeConfig(dir=str(kb_dir)),
+    )
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    rb = next(t for t in tools if t.name == "runbook_search")
+    rb._config = cfg
+    res = await rb.invoke({"query": "RUNBOOK-MERGE-TOKEN-42"})
+    assert not res.is_error
+    assert body.strip() in res.content
 
 
 # 功能:runner 注册开关——[oncall] enabled 时领域工具入注册表
