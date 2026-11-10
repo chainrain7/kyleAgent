@@ -11,7 +11,7 @@
 | 离线回归门禁(cassette 回放) | 20/20 · **2.5s** · 零网络零 Key |
 | 越权操作 | **0**(机器断言 + 真实审批流测试双层证据) |
 | 诊断类剧本零变更(不该动手时不动手) | 6/6 首轮全过 |
-| 测试 | 513 项(460 单测 + 53 集成)· ubuntu/macos/windows 三平台 CI |
+| 测试 | 515 项(462 单测 + 53 集成)· ubuntu/macos/windows 三平台 CI |
 
 一次完整的值班闭环:**告警注入 → Agent 查日志/查指标/检索 runbook 推理根因 →
 变更操作(重启/扩容/清盘)弹出带影响面的审批卡 → 人工放行 → 告警自动 resolved →
@@ -55,7 +55,7 @@ uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
 - **并行工具执行**：同批纯只读工具（read/list/task_get 等）信号量并发，含变更工具（bash/write_file）整批串行；结果严格按原顺序回填
 - **durable run**：每步快照 run_state.json，daemon 崩溃重启后自动从断点步续跑（工具 at-least-once，终态快照不重复恢复）
-- **Web Console**：浏览器图形前端（可选依赖），与 TUI/CLI 同一套 JSON-RPC 协议经 WS↔TCP 桥接器接入：值班台空态（环境摘要 + 建议卡）、流式 Markdown（含表格）、可折叠工具卡、权限审批卡（键盘 y/a/n/d）、上下文水位与缓存命中率、子代理分组渲染、亮/暗主题切换（跟随系统 + localStorage 记忆）
+- **Web Console**：浏览器图形前端（React + Vite + Tailwind + shadcn/ui,可选依赖），与 TUI/CLI 同一套 JSON-RPC 协议经 WS↔TCP 桥接器接入：值班台空态（环境摘要 + 建议卡）、流式 Markdown（含表格）、可折叠工具卡、权限审批卡（键盘 y/a/n/d + 拓扑影响面）、上下文水位与缓存命中率、子代理分组渲染、OnCall 告警队列/服务健康/演练注入/处置报告浮层、亮/暗主题切换（跟随系统 + localStorage 记忆）；构建产物入库,CI 零 Node
 - **Textual TUI**：主前端，实时渲染 LLM 流、可折叠工具调用块、内联权限审批卡片、斜杠命令自动补全、上下文水位显示
 
 ## 架构
@@ -284,15 +284,26 @@ uv run kyle-webui              # 终端 2:桥接器,默认 http://127.0.0.1:8080
 
 打开 <http://127.0.0.1:8080> 即可使用。桥接器(`src/kyle_agent/webui/bridge.py`)
 对每条浏览器 WebSocket 建立一条到 daemon 的 TCP 连接并双向中继——不解析、
-不改写协议,协议契约仍由 `core/bus/` 模型单源生成。前端无构建步骤(原生
-HTML/CSS/JS),支持流式 Markdown(含表格)、可折叠工具卡片、审批快捷键、
-值班台空态、告警/审批/报告浮层、上下文水位与断线自动重连。
+不改写协议,协议契约仍由 `core/bus/` 模型单源生成。前端为 React 18 + Vite +
+Tailwind + shadcn/ui(`webui/frontend/`,需 Node ≥ 20 才能改源码重新构建;
+构建产物 `webui/dist/` 已提交入库,运行与 CI 不需要 Node),支持流式
+Markdown(含表格)、可折叠工具卡片、审批快捷键、值班台空态、告警/审批/报告
+浮层、上下文水位与断线自动重连。
 
-视觉系统「专业控制室」:中性石墨暗色,白色是唯一行动色(主按钮/焦点环/发送),
-彩色只表达状态语义(绿=健康、琥珀=待审批、红=告警)。顶栏按钮切换亮/暗主题:
-首次跟随系统 `prefers-color-scheme`,手动选择后存 localStorage 记忆,状态色
-经 `color-mix` 派生自动适配双主题。静态资源带 `Cache-Control: no-cache`,
-改完前端刷新即生效。
+视觉系统「control-room v3」:中性石墨暗色(canvas `#0e0e11`),白色是唯一
+行动色(主按钮/焦点环/发送),彩色只表达状态语义(绿=健康、琥珀=待审批、
+红=告警),系统字体栈零网络字体。顶栏按钮切换亮/暗主题:首次跟随系统
+`prefers-color-scheme`,手动选择后存 localStorage(`kyle.theme`)记忆,状态色
+随主题自动适配。静态资源带 `Cache-Control: no-cache`。
+
+改前端源码后重新构建:
+
+```bash
+cd src/kyle_agent/webui/frontend
+npm install                    # 首次;依赖锁定在 package-lock.json
+npm run dev                    # 开发模式(5173 端口,WS/API 代理到 8080 桥接器)
+npm run build                  # 构建到 webui/dist(tsc 类型检查先行)
+```
 
 ![kyleAgent Web Console](docs/images/webui.png)
 

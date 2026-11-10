@@ -2,7 +2,8 @@
 
 浏览器无法直连 kyle-core 的 TCP NDJSON 协议;本模块在两者之间做纯中继:
 
-- 静态资源:serve webui/static/(单页前端,无构建步骤)
+- 静态资源:serve webui/dist/(React 构建产物,已提交入库;改前端源码
+  需 Node ≥20,见 webui/frontend/README.md,源码目录不进 wheel)
 - WebSocket `/ws`:每个浏览器连接对应一条到 daemon 的 TCP 连接,
   浏览器发来的每条文本消息 = 一条 JSON-RPC 命令(补 \\n 转发);
   daemon 推回的响应/事件信封原样转发给浏览器。
@@ -28,7 +29,7 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
-_STATIC_DIR = Path(__file__).parent / "static"
+_DIST_DIR = Path(__file__).parent / "dist"
 _MAX_LINE_BYTES = 64 * 1024 * 1024  # 与 socket_server/socket_client 一致
 
 app = FastAPI(title="kyleAgent Web UI", docs_url=None, redoc_url=None)
@@ -40,7 +41,7 @@ async def no_stale_static(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]
 ) -> Response:
     response = await call_next(request)
-    if request.url.path.startswith("/static") or request.url.path == "/":
+    if request.url.path.startswith("/assets") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-cache"
     return response
 
@@ -52,14 +53,14 @@ def _core_address() -> tuple[str, int]:
     return host, port
 
 
-# 首页(单页前端入口)
+# 首页(单页前端入口,React 构建产物)
 @app.get("/")
 async def index() -> FileResponse:
-    return FileResponse(_STATIC_DIR / "index.html")
+    return FileResponse(_DIST_DIR / "index.html")
 
 
-# 静态资源(style.css / app.js)
-app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+# 构建产物(assets/* 哈希文件名,由 vite build 输出)
+app.mount("/assets", StaticFiles(directory=_DIST_DIR / "assets"), name="assets")
 
 
 # WebSocket ↔ daemon TCP 双向中继;任一侧断开即收尾另一侧

@@ -147,21 +147,31 @@ Beyond the staged S0–S7 base, the runtime now ships:
   (`python -m kyle_agent.oncall.inject`). Opt-in via `[oncall] enabled`. See
   docs/design/tech-design.md before touching `oncall/`; recovery rules must stay
   aligned with scenario expected_actions.
-- **Web Console** (`src/kyle_agent/webui/`): FastAPI WS↔TCP relay + static
-  single-page frontend (optional deps `[webui]`, entry `kyle-webui`). The bridge
-  never parses or rewrites protocol messages; frontend has no build step.
+- **Web Console** (`src/kyle_agent/webui/`): FastAPI WS↔TCP relay + React
+  frontend (optional deps `[webui]`, entry `kyle-webui`). The bridge
+  never parses or rewrites protocol messages. Frontend source lives in
+  `webui/frontend/` (React 18 + Vite + Tailwind v4 + shadcn/ui, needs Node ≥ 20
+  to build; `npm run dev` proxies /ws + /api to the bridge on 8080); build
+  output `webui/dist/` is **committed to the repo** so runtime and CI stay
+  pure Python (zero Node) — `tests/unit/test_webui_dist.py` guards dist
+  completeness (index.html + referenced assets exist; bridge `_DIST_DIR`).
+  `pyproject` hatch `exclude` keeps `webui/frontend` out of the wheel;
+  `webui/static/` (legacy no-build frontend) is removed.
   CI installs `--extra webui`; E2E coverage in `tests/integration/test_webui_bridge.py`.
-  Design system v2 "control-room": neutral graphite dark, white is the only action
-  color (primary buttons/focus ring/send), status colors are semantic only
-  (green=healthy, amber=approval, red=alert). Light/dark themes: `:root` holds dark
-  defaults, `:root[data-theme="light"]` overrides; all status tints derive via
-  `color-mix(var(--ok/--warn/--err/--info))` so themes adapt automatically. Toggle in
-  topbar persists to localStorage (`kyle.theme`), first visit follows
-  `prefers-color-scheme`; an inline `<head>` script sets `data-theme` before CSS to
-  avoid flash. Bridge serves `/` and `/static` with
-  `Cache-Control: no-cache` (browsers must revalidate after asset changes).
-  Frontend `mdRender` supports headings/lists/fences/links and pipe tables (report
-  overlay wraps content in `.assistant-text` to reuse table styles).
+  Design system v3 "control-room": neutral graphite dark (canvas `#0e0e11`),
+  white is the only action color (primary buttons/focus ring/send), status
+  colors are semantic only (green=healthy, amber=approval, red=alert,
+  blue=info), system font stack (zero network fonts). Themes via shadcn
+  `.dark` class + legacy `data-theme`; toggle in topbar persists to
+  localStorage (`kyle.theme`), first visit follows `prefers-color-scheme`,
+  inline head script sets both before CSS to avoid flash. Bridge serves `/`
+  and `/assets` with `Cache-Control: no-cache`. Markdown via react-markdown +
+  remark-gfm (tables) + remark-breaks (single newline = line break, matching
+  the old line-based renderer for report fields). Known-bug fixes carried
+  during the rewrite: oncall panel no longer freezes after hero unmount (old
+  `renderEnvSummary` threw once `#heroEnv` was gone), streaming text renders
+  a single markdown container (old token-span accumulation duplicated text
+  on multi-token streams).
 
 Docs rule: every functional change updates this file and README together.
 

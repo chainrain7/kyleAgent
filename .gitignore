@@ -22,3 +22,7 @@ evals/results/oncall-record-*
 
 # OnCallCopilot 模拟环境基线日志是测试数据,必须入库
 !src/kyle_agent/oncall/baseline/logs/*.log
+
+# Web Console 前端:node_modules 永不入库;dist 构建产物必须入库(负模式豁免上面的全局规则)
+node_modules/
+!src/kyle_agent/webui/dist/

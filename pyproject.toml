@@ -37,6 +37,8 @@ webui = [
 # ---- Hatch：打 wheel 时从 src 布局收录包 ----
 [tool.hatch.build.targets.wheel]
 packages = ["src/kyle_agent"] # 源码在 src/kyle_agent
+# 前端源码不进 wheel(需 Node 构建);构建产物 webui/dist 照常入库/入包
+exclude = ["src/kyle_agent/webui/frontend"]
 
 # ---- 开发期依赖（PEP 735）----
 [dependency-groups]

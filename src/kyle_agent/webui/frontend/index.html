@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OnCallCopilot</title>
+    <script>
+      /* 主题预设:localStorage(kyle.theme)优先,否则跟随系统;
+         须在 CSS 生效前同时设好 .dark 类(shadcn)与 data-theme(旧版语义)防闪屏 */
+      (function () {
+        try {
+          var t = localStorage.getItem("kyle.theme");
+          var dark = t ? t === "dark" : !window.matchMedia("(prefers-color-scheme: light)").matches;
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+        } catch (e) {
+          document.documentElement.classList.add("dark");
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
