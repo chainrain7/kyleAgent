@@ -305,7 +305,9 @@ npm run dev                    # 开发模式(5173 端口,WS/API 代理到 8080 
 npm run build                  # 构建到 webui/dist(tsc 类型检查先行)
 ```
 
-![kyleAgent Web Console](docs/images/webui.png)
+![Web Console 暗色值班台(聊天流/工具卡/审批卡/影响面)](docs/product/img/final/final-approval-impact-dark.png)
+
+![处置报告浮层(亮色主题)](docs/product/img/final/final-report-overlay-light.png)
 
 ### 断线重连与会话恢复
 
