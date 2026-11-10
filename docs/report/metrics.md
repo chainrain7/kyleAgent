@@ -79,3 +79,60 @@ uv run python scripts/run_evals.py --suite oncall --replay      # 20/20, ~2.5s, 
 uv run python scripts/run_evals.py --suite oncall --record      # 真实 LLM 复测
 uv run pytest tests/integration/test_oncall_eval_replay.py -q   # CI 门禁(21 例)
 ```
+
+## 6. 上下文压缩实测(2026-11-10,单次实测)
+
+| 项 | 值 |
+|---|---|
+| 场景 | 同一 chat session 内顺序 5 轮 goal,每轮 `read_file` 读 2~3 个大文件并一句话总结(uv.lock 102KB / README.md 34KB / WIRE_PROTOCOL.md 29KB / AGENT.md 15KB,共 13 次读取);随后手动 `session.compact` + 1 条探针消息 |
+| daemon | 真实 API(DeepSeek deepseek-flash,Anthropic 兼容端点);临时 USERPROFILE/HOME 隔离 `~/.kyle`;默认压缩配置(auto_threshold=0 自动压缩关闭,tool_result 截断 8000/4000) |
+| 压缩前 A | **71,944 input_tokens**(goal 5 最后一次 llm.usage;含缓存合计 95,112) |
+| 压缩后 B | **1,720 input_tokens**(探针消息首轮 llm.usage;含缓存合计 3,896) |
+| 降幅 | **input 字段口径 -97.6%**;含缓存口径 -95.9%。单次实测,不写平均、不外推 |
+| 落盘佐证 | thread.jsonl 602,255 B(压缩前 .bak 留档)→ 7,285 B;compact RPC 返回 summary_tokens=2,792 / saved_tokens=26,925(压缩器自有 token 口径,与 API usage 口径不可直接互比) |
+
+**口径说明**:
+
+- A=压缩前最后一次 `llm.usage` 的 input_tokens,B=压缩完成后第一次业务 `llm.usage` 的
+  input_tokens;压缩点由 RPC 顺序保证(goal 5 run 结束 → session.compact → 探针 run)。
+  压缩器自身的 LLM 调用走 silent bus,不产生 usage 事件——全序列 11 条 usage 均为业务调用;
+- DeepSeek 端点启用提示缓存:usage.input_tokens 不含 cache_read,故并列两种口径;
+  简历/学习路线引用 **input 字段口径(71,944 → 1,720,-97.6%)**;
+- 会话构造:线程重建(每条消息开头)对超长 tool_result 应用 8k/4k 截断,但同一条消息内
+  多次工具调用的内存上下文不截断,故单轮内累积至 7 万 token 量级——A 取的是消息内
+  最后一次调用,反映压缩前的真实上下文水位;
+- **有损观察**(定性):结构化摘要(「# State Snapshot」格式,含 Goal/Completed/关键发现)
+  聚合了早期轮次,探针凭摘要复述时丢失 AGENT.md 的读取细节(goal 2/4 曾读取)——
+  省 token 的代价是细节有损,符合压缩设计预期。
+
+**usage 时间线摘要**(6 runs / 11 次业务 LLM 调用,ts 为 UTC):
+
+| # | run | input | cache_read |
+|---|---|---|---|
+| 1-2 | goal1 | 2,238 / 59,727 | 0 / 2,304 |
+| 3-4 | goal2 | 3,065 / 16,635 | 3,968 / 7,040 |
+| 5-6 | goal3 | 2,765 / 23,231 | 8,576 / 11,392 |
+| 7-8 | goal4 | 16,577 / 53,245 | 0 / 16,896 |
+| 9-10 | goal5 | 9,399 / **71,944(A)** | 13,312 / 23,168 |
+| 11 | 探针 | **1,720(B)** | 2,176 |
+
+**复现方法**(实验脚本不入库,本地保留 `_p2_exp/driver_compact.py`):临时 HOME 起
+`kyle-core`(KYLE_PORT=17451,KYLE_TRACE_FILE/KYLE_LOG_FILE 指向 tmp)→ SocketClient
+建 chat session → 顺序发 5 条 goal → `session.compact` → 发探针消息 → 解析
+`~/.kyle/sessions/<sid>/runs/*/events.jsonl` 的 llm.usage 序列。原始 events/trace
+含对话内容,不入库,只有本节汇总数字入库。
+
+## 7. 并行工具批(2026-11-10,引用既有 wall-time 断言)
+
+按预定决策走**引用路径**:tests/ 已有现成并行 wall-time 断言,不再做真实 daemon 重测
+(真实文件单次读取 elapsed_ms 仅毫秒级,wall-time 区分度不足,属决策预期内的正常情况)。
+
+- `tests/unit/test_loop.py::test_parallel_readonly_batch_is_faster`:3 个各 sleep 0.25s
+  的只读工具一轮并发——串行执行下限 0.75s,断言整轮耗时 <0.55s(留调度余量),
+  并断言结果严格按 tool_calls 原顺序回填;
+- `test_mixed_batch_falls_back_to_sequential`:批次含变更工具(write_file)时整批退回串行,
+  结果顺序仍与 tool_calls 对齐;
+- `test_parallel_disabled_by_config`:`max_parallel_tools=1` 时只读批次也保持串行(配置开关)。
+
+简历/学习路线 9.1 对并行能力写**定性描述 + 上述单测引用**,不写加速比数字
+(未做 sum/wall ≥ 1.5 的真实实测,不硬凑)。
