@@ -95,3 +95,53 @@ def test_generate_report_diagnosis_only(tmp_path: Path) -> None:
     text = path.read_text(encoding="utf-8")  # type: ignore[union-attr]
     assert "未执行变更" in text
     assert "证书过期" in text
+
+
+# 功能:ranked_candidates 存在时报告渲染"候选根因"小节(根因+置信度%)
+# 设计:鉴别诊断协议进报告;置信度按百分比展示,条目按提交顺序排列
+def test_generate_report_renders_ranked_candidates(tmp_path: Path) -> None:
+    env = SimEnv.reset(tmp_path / "env")
+    BY_ID["payments-cert-expired"].inject(env)
+    run_dir = tmp_path / "runs" / "r4"
+    run_dir.mkdir(parents=True)
+    events = [
+        {"type": "run.started", "run_id": "r4", "ts": "2026-10-28T11:00:00+00:00"},
+        {"type": "tool.call_started", "tool_name": "submit_diagnosis",
+         "params": {"root_cause": "证书过期", "confidence": 0.95,
+                    "ranked_candidates": [
+                        {"root_cause": "证书过期", "confidence": 0.95},
+                        {"root_cause": "上游渠道故障", "confidence": 0.3},
+                    ]},
+         "tool_use_id": "t4", "ts": "2026-10-28T11:00:20+00:00"},
+    ]
+    (run_dir / "events.jsonl").write_text(
+        "\n".join(json.dumps(e, ensure_ascii=False) for e in events) + "\n",
+        encoding="utf-8",
+    )
+    path = generate_report(run_dir, env, "r4")
+    text = path.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    assert "**候选根因**" in text
+    assert "- 证书过期(95%)" in text
+    assert "- 上游渠道故障(30%)" in text
+
+
+# 功能:ranked_candidates 缺失时报告整节省略(向后兼容)
+# 设计:老轨迹/旧 cassette 无该字段——报告不得出现空的候选根因标题
+def test_generate_report_omits_ranked_when_missing(tmp_path: Path) -> None:
+    env = SimEnv.reset(tmp_path / "env")
+    BY_ID["payments-cert-expired"].inject(env)
+    run_dir = tmp_path / "runs" / "r5"
+    run_dir.mkdir(parents=True)
+    events = [
+        {"type": "run.started", "run_id": "r5", "ts": "2026-10-28T11:00:00+00:00"},
+        {"type": "tool.call_started", "tool_name": "submit_diagnosis",
+         "params": {"root_cause": "证书过期", "confidence": 0.95},
+         "tool_use_id": "t5", "ts": "2026-10-28T11:00:20+00:00"},
+    ]
+    (run_dir / "events.jsonl").write_text(
+        "\n".join(json.dumps(e, ensure_ascii=False) for e in events) + "\n",
+        encoding="utf-8",
+    )
+    path = generate_report(run_dir, env, "r5")
+    text = path.read_text(encoding="utf-8")  # type: ignore[union-attr]
+    assert "候选根因" not in text

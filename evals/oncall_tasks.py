@@ -35,7 +35,9 @@ _GOAL_TEMPLATE = (
     "4) 最后必须调用一次 submit_diagnosis 提交结构化结论"
     "(root_cause 一句话 / recommended_actions / confidence / evidence)。\n"
     "5) 排查讲效率:两项以上证据指向同一结论即可下结论并处置,"
-    "不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。"
+    "不要穷尽式排查;服务清单与外部依赖以 service_status 输出为准。\n"
+    "6) 提交 submit_diagnosis 时,先在内部列出 2–4 个按可能性排序的候选根因"
+    "(鉴别诊断),填写 ranked_candidates(按 confidence 降序,首位与 root_cause 相同)。"
 )
 
 
@@ -120,8 +122,20 @@ def _to_task(scenario: FaultScenario) -> EvalTask:
         config.oncall.enabled = True
         config.oncall.env_dir = str(_env_path(root))
 
-    # 个别剧本需要"处置→验证→提交"完整闭环,预算放宽(其余默认 12)
-    budget = {"orders-queue-backlog": 14}.get(scenario.id, 12)
+    # 个别剧本需要"处置→验证→提交"完整闭环,预算放宽(其余默认 12):
+    # 多动作编排(基础大促/8 条复合)需查证两组件+双变更+提交
+    budget = {
+        "orders-queue-backlog": 14,
+        "blackfriday-surge": 14,
+        "composite-orders-disk-crashloop": 14,
+        "composite-gateway-surge-memleak": 14,
+        "composite-orders-db-slow-backlog": 14,
+        "composite-payments-cert-orders-disk": 14,
+        "composite-payments-thread-dos": 14,
+        "composite-orders-typo-cpu": 14,
+        "composite-gateway-logflood-connpool": 14,
+        "composite-orders-backlog-memleak": 14,
+    }.get(scenario.id, 12)
     return EvalTask(
         id=f"oncall-{scenario.id}",
         category="oncall",

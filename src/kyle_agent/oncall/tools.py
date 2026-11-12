@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from kyle_agent.core.tools.base import BaseTool, ToolResult
 from kyle_agent.oncall.sim import SimEnv
@@ -534,12 +534,38 @@ class LogCleanupTool(BaseTool):
 # ── 诊断结论提交 ──────────────────────────────────────────
 
 
+# 排序候选根因的单个条目(鉴别诊断:根因一句话 + 置信度)
+class RankedCandidate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    root_cause: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
 class SubmitDiagnosisParams(BaseModel):
     model_config = ConfigDict(extra="ignore")
     root_cause: str = Field(min_length=1)
     recommended_actions: list[dict[str, Any]] = Field(default_factory=list)
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     evidence: str = ""
+    ranked_candidates: list[RankedCandidate] | None = Field(
+        default=None,
+        description="按置信度降序的候选根因(鉴别诊断),首位与 root_cause 相同",
+    )
+
+    # 校验候选列表:给定时长度 2–4、置信度降序、首位与 root_cause 一致
+    @model_validator(mode="after")
+    def _validate_ranked(self) -> SubmitDiagnosisParams:
+        rc = self.ranked_candidates
+        if rc is None:
+            return self
+        if not 2 <= len(rc) <= 4:
+            raise ValueError("ranked_candidates 长度须为 2–4")
+        for prev, cur in zip(rc, rc[1:]):
+            if prev.confidence < cur.confidence:
+                raise ValueError("ranked_candidates 须按 confidence 降序排列")
+        if rc[0].root_cause != self.root_cause:
+            raise ValueError("ranked_candidates[0].root_cause 须与 root_cause 一致")
+        return self
 
 
 class SubmitDiagnosisTool(BaseTool):
@@ -549,7 +575,10 @@ class SubmitDiagnosisTool(BaseTool):
         "Submit the structured diagnosis conclusion. Call exactly once at "
         "the end: root_cause (one sentence), recommended_actions (list of "
         "{tool, params}; empty if the fault needs human/external action), "
-        "confidence (0-1), evidence (key log/metric lines you relied on)."
+        "confidence (0-1), evidence (key log/metric lines you relied on), "
+        "ranked_candidates (optional differential diagnosis: 2-4 candidate "
+        "root causes sorted by confidence descending; the first must equal "
+        "root_cause)."
     )
     input_schema: dict[str, object] = {
         "type": "object",
@@ -561,6 +590,18 @@ class SubmitDiagnosisTool(BaseTool):
             },
             "confidence": {"type": "number"},
             "evidence": {"type": "string"},
+            "ranked_candidates": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "root_cause": {"type": "string"},
+                        "confidence": {"type": "number"},
+                    },
+                    "required": ["root_cause", "confidence"],
+                },
+                "description": "按置信度降序的候选根因(鉴别诊断),首位与 root_cause 相同",
+            },
         },
         "required": ["root_cause"],
     }
@@ -573,13 +614,17 @@ class SubmitDiagnosisTool(BaseTool):
     async def invoke(self, params: dict[str, object]) -> ToolResult:
         p = SubmitDiagnosisParams.model_validate(params)
         actions = json.dumps(p.recommended_actions, ensure_ascii=False)
-        return ToolResult(
-            content=(
-                f"diagnosis recorded.\nroot_cause: {p.root_cause}\n"
-                f"recommended_actions: {actions}\n"
-                f"confidence: {p.confidence}"
-            )
+        content = (
+            f"diagnosis recorded.\nroot_cause: {p.root_cause}\n"
+            f"recommended_actions: {actions}\n"
+            f"confidence: {p.confidence}"
         )
+        if p.ranked_candidates:
+            ranked = ";".join(
+                f"{c.root_cause}({c.confidence:.2f})" for c in p.ranked_candidates
+            )
+            content += f"\nranked_candidates: {ranked}"
+        return ToolResult(content=content)
 
 
 # 构建全部领域工具(注册入口,runner 在 [oncall] enabled 时调用)

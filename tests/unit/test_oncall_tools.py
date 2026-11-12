@@ -337,3 +337,65 @@ async def test_runner_registers_oncall_tools_when_enabled(tmp_path: Path) -> Non
     await AgentRunner(cfg2, provider=provider_off, runs_dir=tmp_path / "runs2").run_and_capture("g")
     assert "service_restart" not in provider_off.names
     assert "submit_diagnosis" not in provider_off.names
+
+
+# 功能:submit_diagnosis 合法 ranked_candidates 通过校验并在确认文本中回显
+# 设计:2 条降序候选、首位与 root_cause 一致——鉴别诊断协议的正向路径
+async def test_submit_diagnosis_ranked_valid(tmp_path: Path) -> None:
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    ok = await tools[8].invoke({
+        "root_cause": "gateway memory leak",
+        "confidence": 0.9,
+        "ranked_candidates": [
+            {"root_cause": "gateway memory leak", "confidence": 0.9},
+            {"root_cause": "traffic surge", "confidence": 0.4},
+        ],
+    })
+    assert "diagnosis recorded" in ok.content
+    assert "gateway memory leak(0.90)" in ok.content
+    assert "traffic surge(0.40)" in ok.content
+
+
+# 功能:ranked_candidates 长度越界(1 条 / 5 条)由校验层拒绝
+# 设计:协议约定 2–4 条;越界在 pydantic model_validator 抛 ValidationError
+async def test_submit_diagnosis_ranked_length_bounds(tmp_path: Path) -> None:
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    base = {"root_cause": "gateway memory leak"}
+    one = [base | {"ranked_candidates": [
+        {"root_cause": "gateway memory leak", "confidence": 0.9}]}]
+    five = [base | {"ranked_candidates": [
+        {"root_cause": f"c{i}", "confidence": 0.9 - i * 0.1} for i in range(5)]}]
+    for params in (*one, *five):
+        with _pytest.raises(ValidationError):
+            await tools[8].invoke(params)
+
+
+# 功能:ranked_candidates 首位与 root_cause 不一致 / 非降序均被拒绝
+# 设计:首位一致性与置信度降序是协议的两条硬约束,各自触发校验错误
+async def test_submit_diagnosis_ranked_order_and_first(tmp_path: Path) -> None:
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    _, tools = _setup(tmp_path, "gateway-mem-leak")
+    mismatch = {
+        "root_cause": "gateway memory leak",
+        "ranked_candidates": [
+            {"root_cause": "traffic surge", "confidence": 0.9},
+            {"root_cause": "gateway memory leak", "confidence": 0.4},
+        ],
+    }
+    with _pytest.raises(ValidationError, match="一致"):
+        await tools[8].invoke(mismatch)
+
+    ascending = {
+        "root_cause": "gateway memory leak",
+        "ranked_candidates": [
+            {"root_cause": "gateway memory leak", "confidence": 0.4},
+            {"root_cause": "traffic surge", "confidence": 0.9},
+        ],
+    }
+    with _pytest.raises(ValidationError, match="降序"):
+        await tools[8].invoke(ascending)

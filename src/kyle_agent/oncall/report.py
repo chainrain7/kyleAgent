@@ -53,6 +53,7 @@ def generate_report(run_dir: Path, env: SimEnv, run_id: str) -> Path | None:
     root_cause = str(diag.get("root_cause", ""))
     confidence = diag.get("confidence", "")
     evidence = str(diag.get("evidence", ""))
+    ranked = diag.get("ranked_candidates") or []
 
     # 变更动作与审批决策(tool_use_id → 决策)
     mutations: list[dict[str, Any]] = []
@@ -84,6 +85,14 @@ def generate_report(run_dir: Path, env: SimEnv, run_id: str) -> Path | None:
     lines.append(f"# 处置报告 · run {run_id}")
     lines.append("")
     lines.append(f"**结论**  {root_cause}(置信度 {confidence})")
+    if ranked:
+        lines.append("")
+        lines.append("**候选根因**")
+        for c in ranked:
+            conf = c.get("confidence") if isinstance(c, dict) else None
+            pct = f"{float(conf):.0%}" if isinstance(conf, (int, float)) else "?"
+            cause = str(c.get("root_cause", "")) if isinstance(c, dict) else str(c)
+            lines.append(f"- {cause}({pct})")
     if mutations:
         acted = ";".join(
             f"{m['tool']} {m['params'].get('service', '')}"

@@ -33,7 +33,7 @@ async def test_api_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         assert data["services"]["gateway"]["status"] == "degraded"
         assert data["alerts"][0]["status"] == "firing"
         assert data["topology"]["gateway"] == ["orders", "payments"]
-        assert len(data["scenarios"]) == 20
+        assert len(data["scenarios"]) == 60
         assert data["reports"] == []
 
 

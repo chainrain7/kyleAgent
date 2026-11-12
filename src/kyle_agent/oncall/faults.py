@@ -1,9 +1,18 @@
-"""OnCallCopilot 故障剧本库(Phase 1)——20 个演练场景的定义与注入。
+"""OnCallCopilot 故障剧本库——基础 20 场景 + 扩容装配(共 60)。
+
+本模块持有:
+- 基础 20 个演练场景(Phase 1,_BASE)的定义与注入;
+- FaultScenario 元数据模型(含 manual_triage_minutes 人工排查估算参考);
+- 全局注册表装配:SCENARIOS = _BASE + faults_xl.SCENARIOS_XL(XL 40 条,
+  延迟加载避免循环导入——XL 侧回引本模块的 FaultScenario/注入 sugar)。
 
 每个剧本 = 一次可复现的"生产事故":注入函数改写模拟环境
 (状态/指标尾段/特征日志/告警),并携带评测所需的期望
 (root_cause_keywords 任一命中即定位正确;expected_actions 与
 终态一一对应;auto_recoverable=False 的诊断类剧本期望零变更)。
+
+manual_triage_minutes 口径:runbook 人工排查参考的"估算值"(非实测),
+按类别基线 × severity 系数(P1×1.2 / P2×1.0)估算并取整到 5 分钟。
 
 清单与技术设计 §4 一一对应,改动需同步文档。
 """
@@ -34,6 +43,7 @@ class FaultScenario:
         expected_actions: list[dict[str, Any]] | None = None,
         auto_recoverable: bool = True,
         note: str = "",
+        manual_triage_minutes: float = 0,
     ) -> None:
         self.id = id
         self.category = category
@@ -45,6 +55,8 @@ class FaultScenario:
         self.expected_actions = expected_actions or []
         self.auto_recoverable = auto_recoverable
         self.note = note
+        # runbook 人工排查参考,估算值(非实测;MTTD/MTTR 对比的基线口径)
+        self.manual_triage_minutes = manual_triage_minutes
 
 
 # ── 注入辅助 ──────────────────────────────────────────────
@@ -313,9 +325,9 @@ def _inject_s20(e: SimEnv) -> None:
     e.append_alert("gateway", "P1", "全链路 p99 抬升,QPS 三倍于基线(大促流量)")
 
 
-# ── 剧本注册表(评测与注入 CLI 共用) ──────────────────────
+# ── 基础剧本注册表(评测与注入 CLI 共用;XL 扩容见 faults_xl) ────
 
-SCENARIOS: list[FaultScenario] = [
+_BASE: list[FaultScenario] = [
     FaultScenario(
         id="gateway-mem-leak", category="leak",
         alert_service="gateway", severity="P1",
@@ -508,6 +520,52 @@ SCENARIOS: list[FaultScenario] = [
         note="多动作编排:入口与订单双扩容",
     ),
 ]
+
+# 基础 20 条的人工排查估算参考(§5 rubric:类别基线 × P1×1.2/P2×1.0,取整 5;
+# 估算口径非实测——crash/配置15·内存泄漏30·连接池/线程25·磁盘满20·CPU/日志洪水20·
+# 队列积压25·依赖宕机直白15·外部误导35·证书过期10·业务bug40·大促/DoS25)
+_BASE_TRIAGE_MINUTES: dict[str, float] = {
+    "gateway-mem-leak": 35,
+    "orders-crashloop-badconfig": 20,
+    "payments-connpool-exhaust": 30,
+    "orders-disk-full": 20,
+    "gateway-cpu-saturation": 20,
+    "orders-queue-backlog": 25,
+    "gateway-dep-orders-down": 20,
+    "gateway-dep-payments-down": 20,
+    "orders-dep-db-slow": 35,
+    "payments-dep-risk-timeout": 35,
+    "payments-cert-expired": 10,
+    "orders-config-typo-errors": 20,
+    "payments-thread-stuck": 30,
+    "orders-cache-miss-storm": 25,
+    "gateway-dos-traffic": 30,
+    "payments-business-rounding": 40,
+    "orders-db-conn-limit": 20,
+    "payments-error-spike-upstream": 35,
+    "gateway-log-flood": 20,
+    "blackfriday-surge": 30,
+}
+
+
+# 给基础剧本回填人工基线估算参考值(表驱动,单一出处便于审计)
+def _backfill_base_triage() -> None:
+    for s in _BASE:
+        s.manual_triage_minutes = _BASE_TRIAGE_MINUTES[s.id]
+
+
+_backfill_base_triage()
+
+
+# 延迟加载 XL 扩容剧本(此时本模块符号已全部就绪,可安全回引)
+def _load_xl() -> list[FaultScenario]:
+    from kyle_agent.oncall.faults_xl import SCENARIOS_XL
+
+    return SCENARIOS_XL
+
+
+# 完整注册表 = 基础 20 条 + XL 扩容 40 条
+SCENARIOS: list[FaultScenario] = _BASE + _load_xl()
 
 # id → 剧本 查找表
 BY_ID: dict[str, FaultScenario] = {s.id: s for s in SCENARIOS}

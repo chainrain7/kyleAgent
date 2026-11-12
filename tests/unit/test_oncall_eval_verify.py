@@ -114,13 +114,80 @@ async def test_verify_multi_action_exact_match(tmp_path: Path) -> None:
     task.verify(**kw)
 
 
-# 功能:任务集完整性——20 条 oncall 任务、id 前缀、goal 含告警文本
+# 功能:任务集完整性——60 条 oncall 任务、id 前缀、goal 含告警文本
 # 设计:与 SCENARIOS 一一对应;goal 不泄露根因(只含表象告警)
 def test_oncall_task_registry() -> None:
-    assert len(ONCALL_TASKS) == len(SCENARIOS) == 20
+    assert len(ONCALL_TASKS) == len(SCENARIOS) == 60
     for task, scenario in zip(ONCALL_TASKS, SCENARIOS, strict=True):
         assert task.id == f"oncall-{scenario.id}"
         assert scenario.alert_summary in task.goal
         # goal 不应包含根因关键词类内容(那是要 LLM 自己查的)
         for kw in ("retr_interval", "OOMKilled", "ConnectionPool"):
             assert kw not in task.goal
+
+
+# 功能:60 条剧本的人工排查估算参考值全部回填且为正
+# 设计:MTTD/MTTR 对比的基线字段;缺失会让人工对比静默失真
+def test_manual_triage_minutes_backfilled() -> None:
+    assert all(s.manual_triage_minutes > 0 for s in SCENARIOS)
+
+
+# 功能:抽查 6 条 XL 新剧本 inject 后可被 --reset 完整复位到基线
+# 设计:注入只改动态文件(state/metrics/logs/alerts),reset 重建即基线;
+#       覆盖 A/B/C 三层各 2 条(含复合双 fault 场景)
+def test_xl_inject_reset_idempotent(tmp_path: Path) -> None:
+    from kyle_agent.oncall.faults import _BASE
+
+    picks = [
+        "payments-mem-leak",          # A 单故障变体
+        "gateway-connpool-exhaust",   # A 单故障变体
+        "gateway-p99-risk-svc-latency",  # B 误导表象(两级传导)
+        "payments-risk-cert-chain",   # B 误导表象(零变更)
+        "composite-orders-disk-crashloop",  # C 复合(同服务双 fault)
+        "composite-payments-cert-orders-disk",  # C 复合(跨服务双 fault)
+    ]
+    baseline = SimEnv.reset(tmp_path / "env0").read_state()
+    assert len(_BASE) == 20  # 防御:基础层不被扩容污染
+    for fid in picks:
+        env = SimEnv.reset(tmp_path / "env")
+        scenario = BY_ID[fid]
+        scenario.inject(env)
+        injected = env.read_state()
+        assert any(s.get("faults") for s in injected.values()), fid
+        SimEnv.reset(tmp_path / "env")
+        restored = SimEnv(tmp_path / "env").read_state()
+        for svc, snap in baseline.items():
+            assert restored[svc]["status"] == snap["status"], fid
+            assert restored[svc]["faults"] == [], fid
+
+
+# 功能:全量 60 条剧本按各自期望动作序列执行后,三重断言全部可满足
+# 设计:注册表自洽性闸门——任何新剧本若"期望动作无法恢复自身注入"或
+#       "关键词不可命中"直接红灯;录制前零成本验证恢复语义闭环
+async def test_all_scenarios_solvable_by_expected_actions(tmp_path: Path) -> None:
+    from kyle_agent.oncall.tools import build_oncall_tools
+
+    for task in ONCALL_TASKS:
+        sid = task.id.removeprefix("oncall-")
+        scenario = BY_ID[sid]
+        env_dir = tmp_path / sid / "oncall-env"
+        env = SimEnv.reset(env_dir)
+        scenario.inject(env)
+        tools = {t.name: t for t in build_oncall_tools(env_dir)}
+        events: list[dict[str, Any]] = []
+        for action in scenario.expected_actions:
+            params: dict[str, Any] = {"service": action["params"]["service"]}
+            if "delta" in action["params"]:
+                params["delta"] = action["params"]["delta"]
+            result = await tools[action["tool"]].invoke(params)
+            assert not result.is_error, f"{sid}: {action['tool']} 执行失败"
+            events.append({"type": "tool.call_started",
+                           "tool_name": action["tool"], "params": params})
+        events.append({
+            "type": "tool.call_started", "tool_name": "submit_diagnosis",
+            "params": {"root_cause": f"issue is {scenario.root_cause_keywords[0]}"},
+        })
+        workspace = tmp_path / sid / "workspace"
+        workspace.mkdir(parents=True, exist_ok=True)
+        task.verify(workspace=workspace, events=events, outcome=None,
+                    runs_root=tmp_path / sid, store=None, session=None)
