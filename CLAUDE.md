@@ -56,11 +56,15 @@ kyle (CLI)   kyle-tui (TUI, S2+)
 Beyond the staged S0–S7 base, the runtime now ships:
 
 - **Evals** (`evals/` + `scripts/run_evals.py`): 12 base deterministic tasks
-  (32 total with the 20-scenario oncall suite, `--suite all`) judged by
+  (72 total with the 60-scenario oncall suite, `--suite all`) judged by
   workspace end-state assertions; cassette record/replay gives offline, zero-key
   deterministic regression (CI gate: `tests/integration/test_eval_replay.py`).
   Changing tool *semantics* requires re-recording cassettes; new tasks require a
-  cassette or the coverage test fails.
+  cassette or the coverage test fails. Real-LLM effect numbers (2026-11-12,
+  metrics.md §8): Top-1/Top-3 100%, full pass 60/60, median wall 20.1s.
+  `--artifacts-dir` persists record-round events/reports;
+  `scripts/eval_score.py` aggregates Top-1/Top-3 hit rates, MTTD/MTTR
+  timelines and the estimated manual-triage baseline comparison.
 - **Engine-level replan loop** (`core/orchestrate/`): `orchestrate_run` tool drives
   planner→executor→reviewer cycles via `SpawnAgentTool` (foreground, strictly
   serial — cassette-replay invariant). Reviewer outputs a trailing

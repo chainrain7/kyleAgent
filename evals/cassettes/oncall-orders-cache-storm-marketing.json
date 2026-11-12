@@ -1,0 +1,456 @@
+{
+ "task_id": "oncall-orders-cache-storm-marketing",
+ "version": 1,
+ "recorded_at": "2026-11-12T09:00:55.643369+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the service topology and the alert details.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_LvgEriPOIeERrkXCw5ep7521",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_regys6c5VejUjP7BadX15781",
+     "name": "alerts_list",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "e1fb60ef-f59a-43e4-b87e-9361609c0c7b"
+    }
+   ],
+   "usage": {
+    "input_tokens": 384,
+    "output_tokens": 47,
+    "cache_read_input_tokens": 3072,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_gscojDATl1seP2A6RbY59290",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    },
+    {
+     "id": "call_01_o7Bv4j9tYcM7TepZ5OAb8733",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_02_KeGHewbUT8i7OSIBqnED8724",
+     "name": "runbook_search",
+     "input": {
+      "query": "缓存命中率骤降 营销批任务打穿缓存"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let's query metrics and logs for orders, and runbook search.",
+     "signature": "e9accad4-fe16-4c0f-b924-356523b0471f"
+    }
+   ],
+   "usage": {
+    "input_tokens": 396,
+    "output_tokens": 136,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_rKhqAxrqxVptQnnzMsqm0648",
+     "name": "runbook_search",
+     "input": {
+      "query": "cache hit ratio drop promo batch job capacity"
+     }
+    },
+    {
+     "id": "call_01_sCy0SDSWW25aPZYNeJtf4063",
+     "name": "runbook_search",
+     "input": {
+      "query": "capacity surge scale up"
+     }
+    },
+    {
+     "id": "call_02_m9XZvvHoKTO01faA29jm2359",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 60,
+      "level": "ERROR"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "The cache hit ratio dropped to 15%, promo batch job scanning full catalog — that's cache penetration/breakdown. db_qps jumped from 244 to 520. p99 390ms.\n\nLet me search relevant runbooks: capacity-surge, external-dependency. Also check orders-db logs.\n\nQuestion: is this a capacity issue (traffic surge)? Cache hit drop → db load doubled → latency rise. The promo batch job is a business/capacity cause. Is it auto-recoverable? Let me check runbook capacity-surge and external-dependency.\n\nActually careful: the task hints at \"复合故障\" — multiple components abnormal simultaneously. We need to check other services too. Let's check orders-db (external, not operable), and also check gateway/payments metrics. Let's look at runbooks.",
+     "signature": "3a7ecf05-fba0-4e3b-bbc0-7354259fcd85"
+    }
+   ],
+   "usage": {
+    "input_tokens": 439,
+    "output_tokens": 307,
+    "cache_read_input_tokens": 3840,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_IwgvKEDY3YbgWMmNFvLZ6066",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_CAghm27EpsEtcme76NBG3933",
+     "name": "metrics_query",
+     "input": {
+      "service": "payments"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Cache hit drop + db_qps spike → capacity/cache storm → scale_up orders. Baseline was 99%, now 15%, db_qps 244→520, p99 213→390.\n\nBut the task warns about compound faults: multiple components abnormal simultaneously. Let's check gateway and payments, and orders' metrics window more. Also check gateway logs / metrics. And payments.\n\nLet me query metrics for gateway and payments, and logs for orders with keyword \"cache\" / \"timeout\".",
+     "signature": "08d21499-b8f0-4966-bcfa-96afb08e8857"
+    }
+   ],
+   "usage": {
+    "input_tokens": 1149,
+    "output_tokens": 170,
+    "cache_read_input_tokens": 4480,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_57JFSMrGRr49ujBYvvbh5986",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "cache",
+      "tail": 100
+     }
+    },
+    {
+     "id": "call_01_Yu4lmuNn1pxZyrE6UjfR6456",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "promo",
+      "tail": 100
+     }
+    },
+    {
+     "id": "call_02_1PRjq5RVEhM1p9hEhyUQ0976",
+     "name": "logs_query",
+     "input": {
+      "service": "orders-db",
+      "tail": 50
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "gateway and payments are basically at baseline (tiny drift). So only orders is abnormal: cache_hit_pct drop + db_qps spike + p99 spike. Single service → its own capacity. So scale_up orders.\n\nBut wait — is there something else? The task mentions compound faults (multiple components abnormal simultaneously). Currently only orders is degraded. Let me check if there is a queue lag issue... queue_lag=0. Memory normal, cpu normal, disk normal, error rate normal.\n\nHmm, but orders' abnormal is only cache hit + db_qps + p99. Root cause: promo batch job 'flash-sale-warmup' scanning full catalog → cache penetration → db_qps spike → p99. That's a capacity problem → scale_up orders is the stopgap. But is a batch job the \"root cause\" (business/scheduling issue) requiring human action?\n\nPer the runbook capacity-surge: 缓存风暴 → scale_up 承压服务. So scale_up orders. And recommendation: throttle/schedule the promo batch job off-peak.\n\nWait, but should I check whether the batch job is a full catalog scan causing cache invalidation? Let me look at more logs — maybe before/after, and check whether cache_hit_pct step change point. Let's do a deeper logs query with keyword \"cache\" tail 100, and also check orders-db (external - will return unknown probably).\n\nAlso consider: maybe there are two independent anomalies — e.g., a memory leak in orders? memory 469 vs mean 463, rising slightly but not leak-like. cpu 30 (fine). disk 38 (fine).\n\nLet me check orders logs more thoroughly for other anomalies and check the external dep orders-db.",
+     "signature": "d428613c-93ea-40f6-b191-862fc8b3847e"
+    }
+   ],
+   "usage": {
+    "input_tokens": 420,
+    "output_tokens": 538,
+    "cache_read_input_tokens": 5760,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_yI9IECFBGPFKbIpT4yUH9790",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 200
+     }
+    },
+    {
+     "id": "call_01_08HnkJ7QjSM0PURkMPvo2580",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "So orders-db is external, not operable. Evidence: cache hit 99%→15%, db_qps 244→520, p99 213→390. Cause: promo batch job 'flash-sale-warmup' full catalog scan.\n\nAction per runbook: scale_up orders (缓存风暴扩承压服务). That's the stopgap. The batch job itself is a scheduling issue → recommendation.\n\nIs scaling up appropriate? orders replicas=2 → scale up to 3. Limit 6.\n\nShould I also consider log_cleanup or restart? disk 38% not full. Not restart.\n\nBut wait — the compound fault hint. Maybe there's another fault hidden. Let me double-check by querying other metrics window and check orders logs for other patterns like \"thread\", \"timeout\", \"gc\", \"retry\", \"leak\". Also tail more logs (tail=60 gave the whole log?). Log file seems short. Let me query tail=200 with no keyword to see everything.",
+     "signature": "daee7fca-52ef-44dd-9f1c-7a627c7a4b9d"
+    }
+   ],
+   "usage": {
+    "input_tokens": 170,
+    "output_tokens": 308,
+    "cache_read_input_tokens": 6656,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "证据表明只有 `orders` 自身发生了缓存风暴。我将执行 runbook 规定的处置步骤（扩容承压服务）。",
+   "tool_calls": [
+    {
+     "id": "call_00_EWebuyeIbATbbEHCNJJK4550",
+     "name": "scale_up",
+     "input": {
+      "service": "orders",
+      "delta": 2
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Only one anomaly. So handle: scale_up orders.\n\nLet me execute scale_up orders.",
+     "signature": "5d98b1ad-ce73-42c5-ab3b-fb6ab50c961b"
+    }
+   ],
+   "usage": {
+    "input_tokens": 330,
+    "output_tokens": 97,
+    "cache_read_input_tokens": 7040,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_ivhMSnGV2XVDqHBpawGH8139",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_pfGrmOmD2POa8Yrn79pa4968",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "03533df7-3373-4fe3-aeff-47d3a8259928"
+    }
+   ],
+   "usage": {
+    "input_tokens": 217,
+    "output_tokens": 50,
+    "cache_read_input_tokens": 7296,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_pMelTqdgEFy42j6K36uq4015",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "营销批任务 'flash-sale-warmup' 全量扫描商品目录击穿了 orders 缓存（命中率 99%→15%），回源流量使 db_qps 从 244 翻倍至 520，orders 副本容量不足导致 p99 从 213ms 抬升至 390ms。",
+      "recommended_actions": [
+       {
+        "tool": "scale_up",
+        "params": {
+         "service": "orders",
+         "delta": 2
+        },
+        "note": "已执行：orders 副本 2→4，故障 orders-cache-storm-marketing 已清除，p99 回落至 95ms，告警 resolved"
+       },
+       {
+        "tool": "human_action",
+        "params": {
+         "action": "将营销批任务 flash-sale-warmup 改为分批/分批预热+错峰调度，避免全量扫目录；对高并发热点 key 加空值缓存/布隆过滤器与随机 TTL 抖动，并给 orders-db 侧批任务加限流"
+        },
+        "note": "治本项：批任务调度与缓存击穿防护属业务/配置改动，需人工评审后上线，不在值班自动变更范围"
+       }
+      ],
+      "confidence": 0.88,
+      "evidence": "logs orders: \"17:00:26 WARN cache hit ratio dropped to 15% (baseline 99%)\" 与 \"17:00:26 WARN promo batch job 'flash-sale-warmup' scanning full catalog\"（同一时刻，因果相邻）；metrics orders: cache_hit_pct 100.98→15.0（step change）、db_qps 244→520（step change，回源压力翻倍）、p99_ms 213→390（step change）；同期 gateway(cache_hit 100%、p99 120ms、qps 500 与基线一致) 与 payments(p99 210ms、qps 200、err 0.004) 均无偏离，err/disk/mem 正常、queue_lag=0，排除入口流量洪峰、磁盘满、内存泄漏与消费积压；处置后 service_status: orders running replicas=4 p99=95ms，cleared fault=orders-cache-storm-marketing，alert-001 resolved。",
+      "ranked_candidates": [
+       {
+        "root_cause": "营销批任务 'flash-sale-warmup' 全量扫描商品目录击穿 orders 缓存（命中率 99%→15%），回源流量使 db_qps 244→520 翻倍，orders 副本容量不足导致 p99 213→390ms",
+        "confidence": 0.88
+       },
+       {
+        "root_cause": "orders 服务自身副本数不足（replicas=2），无法承受缓存失效后的 DB 回源压力放大，属容量不足类故障",
+        "confidence": 0.62
+       },
+       {
+        "root_cause": "外部依赖 orders-db 因批任务全表扫描出现慢查询/连接打满，反向拖慢 orders 回源与 p99",
+        "confidence": 0.3
+       },
+       {
+        "root_cause": "缓存实例自身故障或被批量驱逐（节点异常/内存驱逐）导致命中率骤降，而非业务侧批任务所致",
+        "confidence": 0.15
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Metrics still show historical current values, but service_status shows orders running, p99 95ms, replicas 4, fault cleared, alert resolved. Good.\n\nNow submit diagnosis.\n\nranked_candidates:\n1. 营销批任务 flash-sale-warmup 全量扫描目录导致缓存被击穿（cache_hit 99%→15%、db_qps 244→520、p99 213→390ms），orders 承压（现容量不足）— 0.85\n2. orders 自身副本数不足，无法承受 db_qps 翻倍带来的 p99 抬升（容量维度放大）— 0.6\n3. orders-db 慢查询导致回源变慢/连接打满（外部依赖被动承压）— 0.3\n4. 缓存实例自身故障/被驱逐导致命中率骤降 — 0.2",
+     "signature": "e63aa79b-9739-4d24-9834-8d5437befc4c"
+    }
+   ],
+   "usage": {
+    "input_tokens": 404,
+    "output_tokens": 968,
+    "cache_read_input_tokens": 7552,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_kZMNviDgqjDJYWACQQNb9511",
+     "name": "submit_diagnosis",
+     "input": {
+      "confidence": 0.88,
+      "evidence": "logs orders: \"17:00:26 WARN cache hit ratio dropped to 15% (baseline 99%)\" 与 \"17:00:26 WARN promo batch job 'flash-sale-warmup' scanning full catalog\"（同一时刻，因果相邻）；metrics orders: cache_hit_pct 100.98→15.0（step change）、db_qps 244→520（step change，回源压力翻倍）、p99_ms 213→390（step change）；同期 gateway(cache_hit 100%、p99 120ms、qps 500 与基线一致) 与 payments(p99 210ms、qps 200、err 0.004) 均无偏离；orders err 0.003/disk 38%/mem 469MB/queue_lag 0 均正常，排除入口流量洪峰、磁盘满、内存泄漏与消费积压；处置后 service_status: orders running replicas=4 p99=95ms，cleared fault=orders-cache-storm-marketing，alert-001 resolved。",
+      "ranked_candidates": [
+       {
+        "confidence": 0.88,
+        "root_cause": "营销批任务 'flash-sale-warmup' 全量扫描商品目录击穿了 orders 缓存（命中率 99%→15%），回源流量使 db_qps 从 244 翻倍至 520，orders 副本容量不足导致 p99 从 213ms 抬升至 390ms。"
+       },
+       {
+        "confidence": 0.62,
+        "root_cause": "orders 服务自身副本数不足（replicas=2），无法承受缓存失效后的 DB 回源压力放大，属容量不足类故障。"
+       },
+       {
+        "confidence": 0.3,
+        "root_cause": "外部依赖 orders-db 因批任务全表扫描出现慢查询/连接打满，反向拖慢 orders 回源与 p99。"
+       },
+       {
+        "confidence": 0.15,
+        "root_cause": "缓存实例自身故障或被批量驱逐（节点异常/内存驱逐）导致命中率骤降，而非业务侧批任务所致。"
+       }
+      ],
+      "recommended_actions": [
+       {
+        "note": "已执行：orders 副本 2→4，故障 orders-cache-storm-marketing 已清除，p99 回落至 95ms，alert-001 resolved",
+        "params": {
+         "delta": 2,
+         "service": "orders"
+        },
+        "tool": "scale_up"
+       },
+       {
+        "note": "治本项：批任务调度与缓存击穿防护属业务/配置改动，需人工评审后上线，不在值班自动变更范围",
+        "params": {
+         "action": "将营销批任务 flash-sale-warmup 改为分批/预热式扫描并错峰调度，避免全量扫目录；对批量任务做 db 侧限流；热点 key 增加空值缓存/布隆过滤器与随机 TTL 抖动防击穿"
+        },
+        "tool": "human_action"
+       }
+      ],
+      "root_cause": "营销批任务 'flash-sale-warmup' 全量扫描商品目录击穿了 orders 缓存（命中率 99%→15%），回源流量使 db_qps 从 244 翻倍至 520，orders 副本容量不足导致 p99 从 213ms 抬升至 390ms。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Need exact match. Use the same string as root_cause exactly.",
+     "signature": "ff3693aa-61d9-492f-828b-735decb9d44f"
+    }
+   ],
+   "usage": {
+    "input_tokens": 185,
+    "output_tokens": 815,
+    "cache_read_input_tokens": 8832,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 处置完成\n\n**告警**：P2 | orders | 缓存命中率骤降（alert-001，已 resolved）\n\n### 排查过程（表象 → 根因）\n| 证据 | 内容 |\n|---|---|\n| `logs_query orders` | `17:00:26 WARN cache hit ratio dropped to 15% (baseline 99%)` |\n| 同一时刻日志 | `17:00:26 WARN promo batch job 'flash-sale-warmup' scanning full catalog` — 关键因果线索 |\n| `metrics_query orders` | cache_hit_pct **100.98 → 15.0**（step change）、db_qps **244 → 520**（step change，回源压力翻倍）、p99_ms **213 → 390**（step change） |\n| `service_status` 全拓扑 | gateway p99 120ms / cache_hit 100% / qps 500 与基线一致；payments p99 210ms / qps 200 正常 → **排除入口流量洪峰**，属单服务自身问题 |\n| 其余指标 | err 0.003、disk 38%、mem 469MB、queue_lag 0 → 排除磁盘满、内存泄漏、消费积压、崩溃循环 |\n\n**根因**：营销批任务 `flash-sale-warmup` 全量扫描商品目录，直接击穿 orders 缓存（命中率 99%→15%），回源流量使 db_qps 翻倍，orders 仅 2 副本，容量不足以吸收这波回源压力，导致 p99 从 213ms 抬到 390ms。告警标题中的“缓存命中率骤降”是**表象**，真正压力源是批任务的缓存击穿 + 自身副本容量不足。\n\n### 处置动作（可自动恢复部分）\n- ✅ `scale_up orders delta=2` → 副本 **2 → 4**，清除故障 `orders-cache-storm-marketing`\n- 结果：orders **running**，p99 回落 **390ms → 95ms**，告警自动 resolved\n\n### 遗留建议（需人工/业务侧处理，未做任何自动变更）\n1. 批任务改为**分批/预热式**扫描并错峰调度，禁止促销前全量扫库；db 侧加批量限流。\n2. 缓存防击穿加固：热点 key 空值缓存 + 布隆过滤器 + TTL 随机抖动，避免下次同类批任务再次打穿。\n3. 确认 orders-db（外部依赖，不可操作）在批任务窗口的慢查询指标，必要时 DBA 侧配合限流/只读副本分流。\n\n**置信度**：0.88（鉴别诊断候选：批任务击穿缓存 0.88 > 副本不足容量 0.62 > orders-db 慢查询 0.30 > 缓存实例自身故障 0.15）",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "9969ca75-b7b3-4ea7-b674-9ac6a13e2230"
+    }
+   ],
+   "usage": {
+    "input_tokens": 560,
+    "output_tokens": 637,
+    "cache_read_input_tokens": 9728,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

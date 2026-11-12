@@ -1,0 +1,231 @@
+{
+ "task_id": "oncall-orders-5xx-db-deadlock",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:34:07.565586+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the overall topology state and searching the runbook.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_HVk08IMiPQzmEFdoO13F3883",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_A1QJt0XQNvLazg7eNawp1198",
+     "name": "runbook_search",
+     "input": {
+      "query": "orders 5xx 飙升 写入失败率 高"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "7dd16c8d-3341-48eb-b709-5155627897c7"
+    }
+   ],
+   "usage": {
+    "input_tokens": 395,
+    "output_tokens": 76,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "现在诊断告警服务并检查其指标。\n",
+   "tool_calls": [
+    {
+     "id": "call_00_1GLPtzZA0lYcjONqjj0j6816",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "level": "ERROR",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_XaegNI471pg0ISmRohnH3105",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders is degraded, err=0.25, p99=900ms, deps orders-db (external). Let's query logs and metrics.",
+     "signature": "c84dad48-bdc8-4988-9e1e-a2084cf9ba52"
+    }
+   ],
+   "usage": {
+    "input_tokens": 976,
+    "output_tokens": 138,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "日志指向 `orders-db` 的 deadlock。我再检查一下针对该场景的 runbook，并扫描 `orders` 的完整日志以确认错误模式。\n",
+   "tool_calls": [
+    {
+     "id": "call_00_AObDIRzDBeUCxauIffln2885",
+     "name": "runbook_search",
+     "input": {
+      "query": "orders-db deadlock 死锁 写入失败 数据库"
+     }
+    },
+    {
+     "id": "call_01_IuA7sJRPLbbMTsAJWRwX9822",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Logs show orders-db deadlock detected on table order_items, insert failed: deadlock retry exhausted. orders-db is an external dependency (not operable). So no changes should be made.\n\nqps stable at 300 (no surge), cpu 30% normal, memory normal, no queue lag, cache hit 100% — rules out capacity. So it's external dependency: DB deadlocks.\n\nLet me do one more corroborating check — search runbook for deadlock/db to find relevant handling procedure.",
+     "signature": "52e6c876-3829-4b2c-9d8b-5aff4829b653"
+    }
+   ],
+   "usage": {
+    "input_tokens": 352,
+    "output_tokens": 238,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "证据已汇聚。`orders` 的指标排除了容量问题和池耗尽，而日志明确指向外部依赖 `orders-db`。\n\n**鉴别诊断（内部排序）：**\n1. `orders-db` 上的表 `order_items` 死锁，导致写入重试耗尽 → 最高\n2. 应用层事务锁顺序／业务代码写入逻辑导致死锁\n3. `orders` 连接池/线程池耗尽（日志中无 pool/acquire 信号）\n4. 容量不足／流量激增（qps 306 平于均值 302、cpu 30%、lag 0、命中率 100%，全部排除）\n\n`orders-db` 位于 `externals` 清单（不可操作），按 runbook「外部依赖」条款：禁止一切变更工具调用。\n",
+   "tool_calls": [
+    {
+     "id": "call_00_p2SBlz8jnSNOOTnwJdtr1028",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "外部依赖 orders-db 在 order_items 表上发生死锁，INSERT 事务重试耗尽，导致 orders 写入失败率升至 25%。",
+      "recommended_actions": [],
+      "confidence": 0.85,
+      "evidence": "1) logs_query(orders, ERROR): \"16:33:48 ERROR orders-db: deadlock detected on table order_items (victim tx 88121)\" / \"16:33:48 ERROR insert failed: deadlock retry exhausted\" —— 错误直接指向 orders-db 与 order_items 写入。\n2) service_status: orders degraded err=0.25 p99=900ms，其 deps=['orders-db']；orders-db 在 externals 清单中（NOT operable），属外部依赖责任边界外。\n3) metrics_query(orders): qps=306(mean 302)、cpu=30.6%、mem=469MB、queue_lag=0、cache_hit_pct=101%、db_qps=61 —— 流量与资源均无偏离基线，排除容量/流量激增；p99 与 error_rate 同步步进跳变但 qps 未涨，符合依赖侧阻塞而非自身过载。\n4) 日志中无 \"ConnectionPool exhausted / thread pool exhausted / acquire timeout\" 等池耗尽特征，且业务日志（order created、cache hit 99.2%、consumer lag 0）在故障前均正常，说明服务自身健康。\n结论：故障在外部数据库侧（死锁/锁竞争），重启或扩容 orders 无效，按 runbook 执行零变更。",
+      "ranked_candidates": [
+       {
+        "root_cause": "外部依赖 orders-db 在 order_items 表上发生死锁，INSERT 事务重试耗尽，导致 orders 写入失败率升至 25%",
+        "confidence": 0.85
+       },
+       {
+        "root_cause": "应用层事务锁顺序/业务代码写入逻辑不当（如批量写 order_items 顺序不一致）引发并发死锁",
+        "confidence": 0.1
+       },
+       {
+        "root_cause": "orders 连接池/线程池耗尽导致写入阻塞",
+        "confidence": 0.03
+       },
+       {
+        "root_cause": "容量不足或流量激增导致过载",
+        "confidence": 0.02
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Evidence converges:\n1. orders-db deadlock on order_items, insert failed retry exhausted\n2. orders-db is in externals list (not operable)\n3. orders metrics: qps flat 306 (mean 302), cpu 30%, mem normal, queue_lag 0, cache_hit 100% — no capacity issue, no pool exhaustion signals (no \"exhausted\" pool/connection keywords — well \"retry exhausted\" but that's deadlock retry).\n\nSo root cause: orders-db 死锁 (external dependency) causing write failures.\n\nNo changes. Submit diagnosis.\n\nWait — should I consider service_restart of orders? Runbook says no. The pool exhaustion runbook doesn't apply (no ConnectionPool/thread pool exhausted, qps flat but that's because DB deadlock). Restarting orders wouldn't clear a DB-side deadlock — deadlock is on DB side. So no change.\n\nranked_candidates:\n1. orders-db 死锁导致 INSERT 重试耗尽 (0.85)\n2. orders 自身连接池/线程池耗尽 (0.08)\n3. 容量不足/流量激增 (0.05)\n4. orders 业务代码写入逻辑问题 (0.02) — hmm, deadlock could be caused by business code lock ordering. Actually that's a plausible alternative: application-level lock ordering causing deadlocks. Let me rank: 1) orders-db deadlock, 2) 应用层写入事务锁顺序/业务代码导致的死锁, 3) 连接池耗尽, 4) 容量不足.\n\nConfidence ~0.85.\n\nEvidence should list lines.\n\nrecommended_actions: empty (external, human action) — spec says empty list if needs human/external action. But \"只给处置建议\" — give advice in text. I'll put recommended_actions empty and describe advice in root_cause/evidence... Actually better: recommended_actions empty per rule 3/4 (\"empty if the fault needs human/external action\"). I'll keep empty and include advice in evidence or a note. Hmm, the final answer text to user can carry advice. Let me keep recommended_actions: [].\n\nLet me write it.",
+     "signature": "75d0461d-794c-4bd2-a5e7-79a9fe1e918e"
+    }
+   ],
+   "usage": {
+    "input_tokens": 920,
+    "output_tokens": 1213,
+    "cache_read_input_tokens": 4864,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_U4CePmqoOnd9ljxPcnpf2595",
+     "name": "submit_diagnosis",
+     "input": {
+      "confidence": 0.85,
+      "evidence": "1) logs_query(orders, ERROR): \"16:33:48 ERROR orders-db: deadlock detected on table order_items (victim tx 88121)\" / \"16:33:48 ERROR insert failed: deadlock retry exhausted\" —— 错误直接指向 orders-db 与 order_items 写入。\n2) service_status: orders degraded err=0.25 p99=900ms，其 deps=['orders-db']；orders-db 在 externals 清单中（NOT operable），属外部依赖责任边界外。\n3) metrics_query(orders): qps=306(mean 302)、cpu=30.6%、mem=469MB、queue_lag=0、cache_hit_pct=101%、db_qps=61 —— 流量与资源均无偏离基线，排除容量/流量激增；p99 与 error_rate 同步步进跳变但 qps 未涨，符合依赖侧阻塞而非自身过载。\n4) 日志中无 \"ConnectionPool exhausted / thread pool exhausted / acquire timeout\" 等池耗尽特征，且故障前业务日志（order created、cache hit 99.2%、consumer lag 0）均正常，说明服务自身健康。\n结论：故障在外部数据库侧（死锁/锁竞争），重启或扩容 orders 无效，按 runbook 执行零变更。",
+      "ranked_candidates": [
+       {
+        "confidence": 0.85,
+        "root_cause": "外部依赖 orders-db 在 order_items 表上发生死锁，INSERT 事务重试耗尽，导致 orders 写入失败率升至 25%。"
+       },
+       {
+        "confidence": 0.1,
+        "root_cause": "应用层事务锁顺序/业务代码写入逻辑不当（如批量写 order_items 顺序不一致）引发并发死锁"
+       },
+       {
+        "confidence": 0.03,
+        "root_cause": "orders 连接池/线程池耗尽导致写入阻塞"
+       },
+       {
+        "confidence": 0.02,
+        "root_cause": "容量不足或流量激增导致过载"
+       }
+      ],
+      "recommended_actions": [],
+      "root_cause": "外部依赖 orders-db 在 order_items 表上发生死锁，INSERT 事务重试耗尽，导致 orders 写入失败率升至 25%。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Need exact match — the first candidate must equal root_cause exactly (ends with 。). Fix.",
+     "signature": "e8060093-bbc5-4b4d-9c32-adbe5e649010"
+    }
+   ],
+   "usage": {
+    "input_tokens": 178,
+    "output_tokens": 591,
+    "cache_read_input_tokens": 6912,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "诊断已提交。\n\n## 结论\n\n**根因：外部依赖 `orders-db` 在 `order_items` 表上发生死锁，导致 INSERT 事务重试耗尽，使 `orders` 写入失败率达到 25%。**\n\n### 证据链（表象 vs 根因）\n| 证据 | 指向 |\n|---|---|\n| `16:33:48 ERROR orders-db: deadlock detected on table order_items (victim tx 88121)` | **根因**：数据库侧死锁 |\n| `insert failed: deadlock retry exhausted` | 死锁重试次数耗尽导致写入失败率上升 |\n| `service_status`：`orders-db` 在 `externals` 清单（NOT operable） | 责任边界在外部，不可操作 |\n| metrics：qps 306（均值 302）、cpu 30.6%、queue_lag 0、cache_hit 101% | 排除容量/流量激增（qps 未涨但 p99/err 跳变） |\n| 日志中无 `ConnectionPool/thread pool exhausted`、`acquire timeout` | 排除池耗尽 |\n| 故障前 `order created`、`cache hit 99.2%`、`consumer lag 0` 正常 | orders 自身健康，degraded 由下游传导 |\n\n### 处置：未执行任何变更（符合零变更原则）\n`orders` 服务自身的指标完全正常，重启或扩容不仅无效，还会扩大影响面；死锁发生在数据库侧，扩容无法解决锁竞争。同时，这属于外部依赖问题，按 runbook 禁止调用变更工具。\n\n### 建议人工处置\n1. **DBA 介入**：确认 `order_items` 上的死锁环（victim tx 88121），查看 `innodb_deadlock_detect` / 锁等待图，杀掉长时间持锁会话。\n2. **治本 - 应用侧重试与隔离**：将订单写入改为按主键顺序批量提交，缩短事务粒度，避免交叉加锁；把“死锁重试耗尽”改为带退避的有限重试，并对非核心写路径降级。\n3. **业务侧临时止血**：在 `orders` 打开写入熔断/降级开关，把 `order_items` 明细写入改为异步队列，只保证订单主表成功，防止 5xx 扩散至 gateway。\n4. **观测**：对 `orders-db` 增加 lock wait / deadlock count 告警，并核对 `tx 88121` 是否有重复提交导致的并发冲突。\n\n如果后续确认死锁由应用层事务锁顺序引起（对应候选 2），需由业务代码负责人修复，并经灰度发布验证。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "14b4f212-3ced-463e-837e-e2eaa019ec71"
+    }
+   ],
+   "usage": {
+    "input_tokens": 171,
+    "output_tokens": 588,
+    "cache_read_input_tokens": 7680,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

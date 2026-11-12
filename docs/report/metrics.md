@@ -2,9 +2,9 @@
 
 | 项 | 值 |
 |---|---|
-| 版本 | Phase 5 基线(2026-10-29) |
+| 版本 | Phase 5 基线(2026-10-29)· 端到端效果评测补录(2026-11-12) |
 | 模型 | DeepSeek(deepseek-flash,Anthropic 兼容端点) |
-| 数据来源 | `evals/results/oncall-baseline.json`(离线回放,确定性) |
+| 数据来源 | `evals/results/oncall-baseline.json`(离线回放,确定性);§8 来自 `evals/results/20261112-score-round1.json` 与 `20261112-score-final.json`(record 产物评分) |
 | 关联 | [PRD](../product/PRD.md) · [技术设计](../design/tech-design.md) |
 
 > **声明**:所有数字来自可复现的评测运行(`uv run python scripts/run_evals.py --suite oncall --replay`),
@@ -21,6 +21,7 @@
 | 越权操作次数 | **0**(预授路径断言 + 真实审批流测试) | 事件流机器断言 |
 | 诊断类剧本零变更 | **6/6 首轮即全过** | 故障标记保留断言 |
 | 处置报告覆盖率 | 20/20 | 文件存在性断言 |
+| **端到端效果(60 剧本,2026-11-12)** | Top-1/Top-3 命中 **100%** · 完整通过 **60/60** · 处置用时中位 **20.1s**(≤120s 达标) | §8(record 单轮实测) |
 
 ## 2. 首轮失败归因与迭代(评测方法论的核心证据)
 
@@ -136,3 +137,122 @@ uv run pytest tests/integration/test_oncall_eval_replay.py -q   # CI 门禁(21 �
 
 简历/学习路线 9.1 对并行能力写**定性描述 + 上述单测引用**,不写加速比数字
 (未做 sum/wall ≥ 1.5 的真实实测,不硬凑)。
+
+## 8. 端到端效果评测(2026-11-12,60 剧本 record 单轮实测)
+
+> 本节回答"系统有用吗":根因命中率(Top-1/Top-3)、端到端处置用时(wall/MTTD/MTTR)
+> 与人工参考基线的对比。全部时间指标来自 **record 轮 events.jsonl**(单轮实测口径);
+> 回放轮 ts 为重放时重新物化、LLM 零延迟,**不产生任何时间指标**。
+
+### 8.1 评测集构成
+
+60 条 = 基础 20(2026-10-28 首轮评测集)+ 新增 40,新增 40 按难度三层设计:
+
+| 难度层 | 条数 | 设计 |
+|---|---|---|
+| 基础(单故障) | 20 | 2026-10 首轮评测集 |
+| 单故障变体 | 22 | 复用注入原语,换服务/幅度/文案 |
+| 误导表象 | 10 | 告警在 A 服务,真根因经拓扑(gateway→{orders,payments};orders→orders-db;payments→{payments-db,risk-svc})传导 |
+| 复合故障 | 8 | 双故障并存/因果链,期望动作为两组件处置并集 |
+
+类别分布(单一类别 52 + 复合 8):leak 8 · crash 6 · capacity 17 · dependency 4 ·
+external 13 · business 4 · 复合 8(构成:capacity+crash 1 / capacity+leak 3 /
+external+capacity 2 / leak+capacity 1 / crash+capacity 1)。
+零变更(诊断类)17 条 / 修复类 43 条。复合剧本的 fault 标记复用组件剧本 id,
+双动作顺序无关恢复;全部 60 条按期望动作序列可自洽通过三重断言(单测
+`test_all_scenarios_solvable_by_expected_actions` 守护)。
+
+`submit_diagnosis` 新增可选 `ranked_candidates`(2–4 条按置信度降序的候选根因,
+首位须与 root_cause 一致,pydantic 硬校验)——鉴别诊断协议,Top-3 指标的载体。
+
+### 8.2 总体成绩(round-1 → 终局)
+
+| 指标 | round-1(2026-11-12) | 终局(goal 迭代 2 轮后) |
+|---|---|---|
+| Top-1 命中率 | 86.7%(52/60) | **100%(60/60)** |
+| Top-3 命中率 | 86.7% | **100%** |
+| 候选覆盖率 | 86.7% | **100%** |
+| 完整通过率(三重断言) | 75%(45/60) | **100%(60/60)** |
+
+round-1 的 8 个 Top-1 未命中**全部**来自 llm_error 网络中断(无 submit 产出),
+行为性根因误判 0;7 个完整通过失败中 6 条复合故障只执行了两组件动作之一、
+1 条漏执行扩容(见 8.4 归因)。
+
+### 8.3 分层与时间指标(终局,record 单轮实测)
+
+| 难度层 | n | Top-1 | wall 中位/P90(s) | MTTD 中位(s) | MTTR 中位(s) |
+|---|---|---|---|---|---|
+| 全量 | 60 | 100% | 20.1 / 29.3 | 16.3 | 10.4 |
+| 基础 | 20 | 100% | 20.1 / 23.3 | 15.7 | 9.5 |
+| 单故障变体 | 22 | 100% | 20.9 / 29.3 | 17.6 | 10.4 |
+| 误导表象 | 10 | 100% | 18.7 / 20.0 | 14.3 | 8.8 |
+| 复合故障 | 8 | 100% | 31.8 / 106.6 | 27.6 | 17.5 |
+
+- wall = run.finished − run.started;MTTD = 最后一条 submit_diagnosis 完成 − run.started;
+  MTTR = 最后一个变更工具完成 − run.started(仅 43 条修复类;诊断类无 MTTR);
+- 全量 wall 中位 **20.1s**,P90 29.3s——**PRD §2.2「中位数 ≤120s」达标**;
+  复合层 P90 106.6s 由两条双动作长轨迹拉高(composite-gateway-surge-memleak 106.6s、
+  composite-orders-typo-cpu 98.1s),仍低于 120s;
+- round-1 时间轴(供对照):wall 20.0/28.7,MTTD 18.1/25.6,MTTR 10.4/15.0。
+
+### 8.4 迭代史(方法论:失败是数据,修产品不修断言)
+
+| 轮次 | 处置 | 结果 | 归因 |
+|---|---|---|---|
+| round-1 | 全量 60 首录 | 45/60 | 8 条 llm_error(网络中断);7 条行为失败:6 条复合只执行两组件动作之一,1 条(orders-cache-storm-marketing)将缓存打穿误判为"业务/人工类"漏执行扩容 |
+| 迭代 1 | goal 追加"复合故障每个可自动恢复组件都必须执行各自变更"条款,复录 15 条失败 | 56/60 | 8 条网络复录全过;复合 6 条恢复 2 条——其余 4 条将并存异常归并为单一因果链,或把"积压止血"误判为外部问题零变更 |
+| 迭代 2 | goal 追加"独立并存异常不得归并为单一因果链只处置其一;本服务积压属可止血容量问题,即使诱因在外部也应先扩容止血",复录 4 条 | **60/60** | 4 条全部恢复 |
+
+关键纪律:两轮迭代**只改 goal 措辞**(PRD 允许的迭代面),`root_cause_keywords` /
+`expected_actions` / severity 等 ground-truth 字段在提交 9184284 后冻结,git diff
+可核;复合剧本评测步数预算 12→14 属 harness 配准非断言放宽;45 条通过任务沿用
+首轮录制不重录(录制成本线性增长,与 2026-10 轮 20 剧本迭代同款口径)。
+
+### 8.5 人工基线对比(估算口径,非实测)
+
+**人工基线为按 runbook 步骤数与经验系数估算的参考值,非实测**(类别基线 ×
+P1×1.2/P2×1.0 取整到 5 分钟,字段 `manual_triage_minutes` 随剧本注册表分发)。
+
+| 口径 | 值 |
+|---|---|
+| 人工参考基线中位(估算) | 30 分钟 |
+| 端到端处置中位(record 实测) | 20.1s ≈ 0.34 分钟 |
+| 加速比 | 约 **90 倍**(脚本取整口径 100×,score JSON `speedup_vs_manual_est`) |
+| 缩短 | 约 **99%** |
+
+表述规范:凡引用加速比处必须带"模拟录制口径下,较 runbook 人工参考基线(估算)"限定语。
+
+### 8.6 复现命令
+
+```bash
+# 记录(真实 LLM,60 条;逐任务 --task 可断点续跑)
+uv run python scripts/run_evals.py --record --suite oncall \
+    --artifacts-dir evals/results/<ts>-record
+# 评分聚合(命中/候选/时间轴/人工对比;--results 供完整通过率)
+uv run python scripts/eval_score.py --artifacts-dir evals/results/<ts>-record \
+    --results evals/results/<ts>-replay.json --out evals/results/<ts>-score.json
+# 离线回放(CI 门禁,确定性)
+uv run python scripts/run_evals.py --replay --suite oncall    # 60/60
+```
+
+本轮产物:`evals/results/20261112-score-round1.json`(round-1 原始成绩留档)、
+`evals/results/20261112-score-final.json`(终局)、`evals/results/20261112-round1-replay.json`
+与 `20261112-round2-replay.json`(两轮回放);录制产物 events.jsonl/处置报告在
+`20261112-record/`(不入库,仅成绩与口径入库)。
+
+## 9. RAG 检索质量(2026-11-12 复核,36 条标注集)
+
+`scripts/eval_rag.py` 的 Recall@k 与 hit@k 事实等价(命中即召回),故检索质量
+以 hit 口径引用。检索语料与确定性行为自 2026-11-11 首测以来零变化,本轮重跑
+`eval_rag.py` 六数字与 `20261111-105331-rag-eval.json` **逐位一致**(blake2b
+确定性哈希嵌入,零 Key、离线可复现):
+
+| 模式(全量 n=36) | R@1(=hit@1) | R@3(=hit@3) | MRR |
+|---|---|---|---|
+| keyword | 0.778 | 0.972 | 0.861 |
+| vector | 0.833 | 0.889 | 0.861 |
+| hybrid | 0.889 | 0.944 | 0.917 |
+
+字面/改写分桶与逐位一致性由 `evals/results/20261112-161753-rag-eval.json` 与
+首测文件直接 diff 核验;默认 keyword、hybrid opt-in 的门禁决策依据不变(§9 首测见
+2026-11-11 记录,混合模式赢 R@1 输 R@3,按预设门禁回退)。

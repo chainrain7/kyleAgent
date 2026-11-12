@@ -1,0 +1,297 @@
+{
+ "task_id": "oncall-payments-cpu-saturation",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:49:57.387178+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the full service status to see the topology state.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_U4DsNh2yBPEHWkd73W2s5509",
+     "name": "service_status",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "7cd27874-1305-4c3a-b19d-cca4af2bac14"
+    }
+   ],
+   "usage": {
+    "input_tokens": 428,
+    "output_tokens": 36,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_0JJwLIgzdEwjfU4Cd0jb0849",
+     "name": "metrics_query",
+     "input": {
+      "service": "payments"
+     }
+    },
+    {
+     "id": "call_01_bBjZGKOn96k7SF5dYapv8537",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let's look at metrics and logs for payments.",
+     "signature": "8c79193c-5475-4739-a300-8929193dbc77"
+    }
+   ],
+   "usage": {
+    "input_tokens": 254,
+    "output_tokens": 94,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_39rp29MNds2MmTKBx2Z51276",
+     "name": "runbook_search",
+     "input": {
+      "query": "CPU 96% high cpu thread starvation latency rising qps surge"
+     }
+    },
+    {
+     "id": "call_01_JpxGzJJZrdWhvnrEiEqz6375",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "level": "WARN",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Key signals: cpu_pct 96%, qps step change from mean 432 to 780 (traffic surge ~80% increase), p99 460ms, thread starvation. No error rate spike, no dependency latency (risk-svc 45ms pass, payments-db 22ms). This looks like capacity/traffic surge → scale_up.\n\nLet me check runbook for the signature, and check other services for compound faults (gateway, orders, risk-svc, payments-db look fine). Let's run runbook_search.",
+     "signature": "44127a5b-a280-451e-bb6b-90da542ad6e3"
+    }
+   ],
+   "usage": {
+    "input_tokens": 459,
+    "output_tokens": 226,
+    "cache_read_input_tokens": 3584,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_nbOV4cRszf7NRow6Da9r2462",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_mfqt0ZFiuNOZx37nc86y7143",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Capacity surge. qps 780 vs baseline 432 (~1.8x), cpu 96%, p99 460ms, thread starvation. No memory leak (mem stable 520→530, disk 35% fine, error rate fine).\n\nCheck whether traffic rise is across the whole chain (gateway qps 500, orders 300). Let's check gateway metrics to see if qps also stepped. Runbook: 全链路抬升=入口流量问题 (scale gateway + bottleneck). Let's check gateway and orders metrics quickly.\n\nAlso check whether risk-svc/payments-db latency fine — logs show 45ms, 22ms — fine.\n\nLet me check gateway metrics.",
+     "signature": "85193ac6-ebc2-4fde-90bb-cbeaf3bd0766"
+    }
+   ],
+   "usage": {
+    "input_tokens": 820,
+    "output_tokens": 210,
+    "cache_read_input_tokens": 4224,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "Gateway and orders are flat — the surge is isolated to payments. This is a capacity fault, not a dependency issue (risk-svc 45ms pass, payments-db 22ms, error_rate flat at 0.4%).",
+   "tool_calls": [
+    {
+     "id": "call_00_xI7L96F0BInVJoXrV9Du0518",
+     "name": "scale_up",
+     "input": {
+      "service": "payments",
+      "delta": 2
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Gateway/orders flat — so it's payments-only capacity surge (qps 780 vs 432 baseline, ~1.8x). CPU 96% (limit 2 cores), thread starvation. This is a single-service capacity fault → scale_up payments.\n\nNote: payments has replicas=3; scale limit 6. Scale up by 1 (or 2). Let's do scale_up payments delta=1... Given qps nearly doubled and cpu at 96% with 3 replicas, delta=2 → 5 replicas. Hmm, moderate. I'll scale by 2 to relieve the ~1.8x surge. Actually safer: delta=1 might not fully relieve. CPU 96% at 3 replicas with qps 780; original capacity at 432 qps had CPU ~62%... Adding 2 replicas gives 5/3 = 1.67x capacity → CPU ~58%. That's good. Let's do delta=2. But risk of over-scaling... The runbook says scale up the bottleneck service. I'll do delta=2.\n\nAlso need to check for compound faults — is risk-svc or payments-db degraded? service_status shows externals but no status detail. They're external, not operable. payments-db logs? Can't query externals? Let me check log of risk-svc via logs_query maybe returns unknown. Quick check: logs_query service='risk-svc' — probably unknown. Not necessary since payments logs show risk=pass 45ms and db 22ms — no dependency fault.\n\nLet me do scale_up.",
+     "signature": "c42e68d3-7b90-41a0-838e-4e4ee4726af0"
+    }
+   ],
+   "usage": {
+    "input_tokens": 386,
+    "output_tokens": 436,
+    "cache_read_input_tokens": 5248,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_81By2SxspmnzJ3qEWxpG0683",
+     "name": "service_status",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "756d41b8-bffe-49d1-9a8d-1a75c3ad221d"
+    }
+   ],
+   "usage": {
+    "input_tokens": 227,
+    "output_tokens": 22,
+    "cache_read_input_tokens": 5888,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_obpJUcPU8qYRLVOsHZY66379",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "payments 服务自身容量饱和:入站流量从基线约432 QPS 突增至 780 QPS(≈1.8×),3 副本在 2 核限额下 CPU 打满 96%,引发线程饥饿(150ms 排队延迟)与 p99 从 310ms 升至 460ms",
+      "recommended_actions": [
+       {
+        "tool": "scale_up",
+        "params": {
+         "service": "payments",
+         "delta": 2
+        },
+        "status": "done",
+        "note": "已将 payments 副本 3→5,CPU 饱和故障已清除,alert-001 已解除;后续观察 p99 与 CPU 是否回落至 ≤70%"
+       },
+       {
+        "tool": "monitor",
+        "params": {
+         "service": "payments",
+         "metrics": [
+          "cpu_pct",
+          "qps",
+          "p99_ms"
+         ]
+        },
+        "status": "advisory",
+        "note": "若流量持续增长(大促),需评估网关侧限流或进一步扩容至 6 副本上限"
+       },
+       {
+        "tool": "advisory",
+        "params": {
+         "service": "payments",
+         "item": "thread pool / intake queue"
+        },
+        "status": "advisory",
+        "note": "业务侧排查 intake 线程池与队列配置是否匹配 2 核限额,避免扩容后仍出现线程饥饿"
+       }
+      ],
+      "confidence": 0.9,
+      "evidence": "metrics_query payments: qps current=780 vs mean=432 (step change); cpu_pct current=96 vs mean=62.4 (step change); p99_ms current=460 vs mean=310 (step change); 日志 16:49:38 WARN \"cpu 96% sustained 6m (limit 2 cores)\" 与 \"thread starvation: 150ms queue delay at intake\" —— 表象(延迟上升)与根因(CPU 饱和)分离。排除项:error_rate 平稳 0.004(非依赖宕机/超时类),memory_mb 520→530 平稳未单调逼近上限(非内存泄漏),disk_pct 35.7%、queue_lag=0、cache_hit_pct≈102(db_qps=0,无缓存风暴),依赖健康(日志 risk-svc call 45ms pass、payments-db query 22ms),gateway(qps 510 vs mean 500, cpu 35%)与 orders(qps 306 vs 300, cpu 30%)均未抬升 → 非入口全链路流量、非下游依赖故障,为 payments 单服务容量不足。scale_up 后 payments running replicas=5, p99 460→210ms, fault payments-cpu-saturation cleared。",
+      "ranked_candidates": [
+       {
+        "root_cause": "payments 服务自身容量饱和:入站流量从基线约432 QPS 突增至 780 QPS(≈1.8×),3 副本在 2 核限额下 CPU 打满 96%,引发线程饥饿(150ms 排队延迟)与 p99 从 310ms 升至 460ms",
+        "confidence": 0.9
+       },
+       {
+        "root_cause": "下游依赖 risk-svc / payments-db 响应变慢导致线程池阻塞堆积",
+        "confidence": 0.05
+       },
+       {
+        "root_cause": "内存泄漏导致 CPU 与延迟同步上升",
+        "confidence": 0.03
+       },
+       {
+        "root_cause": "业务代码/线程池配置不合理(2 核限额下 intake 队列过短)",
+        "confidence": 0.02
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Payments restored: running, p99 210ms, CPU fault cleared. Single fault, no compound. Submit diagnosis.\n\nRanked candidates:\n1. payments 自身容量饱和(流量激增至基线1.8倍,CPU 96%,线程饥饿) — 0.9\n2. 下游依赖 risk-svc / payments-db 延迟导致线程堆积 — 0.05\n3. 内存泄漏导致 CPU/延迟上升 — 0.03\n4. 代码缺陷/线程池配置不当 — 0.02",
+     "signature": "72e63275-10ee-4552-8a63-e425a424def0"
+    }
+   ],
+   "usage": {
+    "input_tokens": 295,
+    "output_tokens": 953,
+    "cache_read_input_tokens": 6016,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 处置完成\n\n**告警**:P2 | payments | CPU 96%,处理延迟上升 → **已解除(alert-001 resolved)**\n\n### 根因(表象 vs 根因)\n- **根因**:payments **自身容量饱和**。入站流量从基线 ~432 QPS 阶跃至 **780 QPS(≈1.8×)**,3 副本在 2 核限额下 **CPU 打满 96%**,线程池被打穿(150ms intake 排队延迟),p99 由 310ms 升至 460ms。\n- **表象**:延迟上升(p99 460ms)只是 CPU 饱和的结果,不是独立故障。\n\n### 证据(两项以上同向偏离基线)\n| 证据 | 结论 |\n|---|---|\n| `qps` 780 vs mean 432(step change)、`cpu_pct` 96 vs mean 62.4(step change)、`p99` 460 vs 310(step change)| 典型的容量/流量激增特征 |\n| WARN `cpu 96% sustained 6m (limit 2 cores)` + `thread starvation: 150ms queue delay at intake` | 线程饥饿由 CPU 耗尽引起 |\n\n### 鉴别诊断(已排除)\n- **依赖故障**:error_rate 平稳 0.004;日志 `risk-svc call 45ms pass`、`payments-db query 22ms` → 下游健康,非 Dependency Down。\n- **内存泄漏**:memory_mb 520→530 平稳,未单调逼近上限 → 排除(故不重启,runbook 明确禁止扩容掩盖泄漏,此处恰好相反)。\n- **缓存风暴**:cache_hit_pct ≈102%、db_qps=0 → 排除。\n- **入口全链路流量**:gateway(qps 510/500,cpu 35%)、orders(qps 306/300,cpu 30%)完全平稳 → 非全局流量,而是 payments 单点承压,故只扩 payments,未动 gateway。\n- **磁盘**:35.7% → 无需 log_cleanup。\n\n### 已执行变更\n- `scale_up(payments, delta=2)`:**副本 3 → 5**,返回 `cleared fault(s): payments-cpu-saturation`,p99 回落至 **210ms**,状态恢复 `running`。\n- 本次为**单一组件故障**(非复合),无其他可自动恢复组件需处置。\n\n### 后续建议\n1. 持续观察 payments 的 CPU ≤70%、p99、qps 趋势;若流量为持续性大促,可再扩至 6 副本上限。\n2. 业务侧复核 intake 线程池/队列长度与 2 核限额的匹配度,避免扩容后仍出现线程饥饿。\n3. 若后续识别为恶意流量(bot UA),需在网关侧加限流/封禁治本。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "2d769b44-87ec-4c8f-8a2c-7e86efac5f01"
+    }
+   ],
+   "usage": {
+    "input_tokens": 545,
+    "output_tokens": 624,
+    "cache_read_input_tokens": 7168,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

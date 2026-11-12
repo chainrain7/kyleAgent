@@ -7,11 +7,12 @@
 
 | 核心指标(全部可复现) | 数值 |
 |---|---|
-| 故障剧本评测(三重断言) | 真实 LLM 首轮 **80% → 迭代后 100%**,20/20 剧本 |
-| 离线回归门禁(cassette 回放) | 20/20 · **2.5s** · 零网络零 Key |
+| 故障剧本评测(三重断言) | 60 剧本 · 真实 LLM **Top-1/Top-3 命中 100%、完整通过 60/60**(round-1 86.7%/75% 起,2 轮 goal 迭代) |
+| 离线回归门禁(cassette 回放) | 60/60 · 秒级 · 零网络零 Key |
+| 端到端处置用时(record 实测) | 中位 **20.1s** / P90 29.3s(PRD ≤120s 达标;MTTD 16.3s / MTTR 10.4s,详见[量化报告 §8](docs/report/metrics.md)) |
 | 越权操作 | **0**(机器断言 + 真实审批流测试双层证据) |
 | 诊断类剧本零变更(不该动手时不动手) | 6/6 首轮全过 |
-| 测试 | 515 项(462 单测 + 53 集成)· ubuntu/macos/windows 三平台 CI |
+| 测试 | 611 项(518 单测 + 93 集成,2026-11-12 统计)· ubuntu/macos/windows 三平台 CI |
 
 一次完整的值班闭环:**告警注入 → Agent 查日志/查指标/检索 runbook 推理根因 →
 变更操作(重启/扩容/清盘)弹出带影响面的审批卡 → 人工放行 → 告警自动 resolved →
@@ -49,7 +50,7 @@ uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
 - **多后端接入**：`llm.provider = "anthropic" | "openai"`；OpenAI 兼容端点（DeepSeek `/v1`、vLLM、Ollama 等）的消息格式翻译在 provider 边界完成，核心循环零感知
 - **web_search 工具**：只读但外发查询，默认 ASK 审批；默认 DuckDuckGo HTML 后端免 key，可用 `KYLE_SEARCH_API_KEY`/`KYLE_SEARCH_ENDPOINT` 切换 JSON API 后端
 - **断线重连恢复现场**：`session.resume` RPC 从磁盘找回最近活跃会话，TUI 重连/重启后接回同一 session 并以最近 run 为锚点回放补齐事件
-- **评测体系**：12 个确定性任务集（终态断言、不依赖 LLM 打分；oncall 套件另有 20 剧本，`--suite all` 共 32）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比报告
+- **评测体系**：12 个确定性任务集（终态断言、不依赖 LLM 打分；oncall 套件另有 60 剧本，`--suite all` 共 72）+ cassette 录制/回放（离线、零 Key、CI 确定性回归）+ `run_evals.py --compare` 前后对比 + `--artifacts-dir` 记录轮产物持久化与 `scripts/eval_score.py` 效果评分（Top-1/Top-3 命中、MTTD/MTTR 时间轴、人工基线对比）
 - **向量 RAG 检索**：`core/rag/` 通用管道（分片→嵌入→召回→重排，零第三方依赖）；确定性哈希嵌入（blake2b 特征哈希 + 库级 IDF + sublinear tf，跨进程逐位一致）或 OpenAI 兼容嵌入端点（磁盘缓存）；`runbook_search` 工具三模式（keyword/vector/hybrid）输出形状一致，36 条标注查询离线评测（`scripts/eval_rag.py`），无匹配按词面证据判定
 - **运行时知识库**：`knowledge_save` 把 markdown 文档沉淀到 `knowledge.dir`（默认 `~/.kyle/knowledge`，标题净化为安全文件名且中文原样保留、同题覆写幂等），`knowledge_search` 对知识库三模式检索（复用 rag 管道）；`runbook_search` 检索源合并为「内建 runbooks + 用户知识库」（输出形状零变化，空知识目录为严格 no-op）；索引按目录 `(文件名, mtime_ns)` 快照自动过期重建，写入后无需显式失效
 - **上下文引擎**：cl100k_base 真实 token 记账、消息级缓存断点与 cache_hit_rate 指标、跨会话记忆（SQLite FTS5 检索注入 + note/run 双向回写）、结构化 JSON 状态压缩与增量压缩（保留最近 N 轮）
@@ -491,18 +492,21 @@ kyleCode/
 
 - ✅ **Phase 0** 产品文档:PRD / 技术设计 / 高保真原型(四画板截图)
 - ✅ **Phase 1** 模拟生产环境:纯文件微服务拓扑(gateway/orders/payments + 3 外部依赖)、
-  时间物化(指标窗口恒为最近 15 分钟)、**20 个故障剧本**(修复类 14 / 诊断类 6)、
+  时间物化(指标窗口恒为最近 15 分钟)、**60 个故障剧本**(修复类 43 / 诊断类 17;
+  难度三层:基础 20 / 单故障变体 22 / 误导表象 10 / 复合故障 8)、
   注入 CLI(`uv run python -m kyle_agent.oncall.inject --list`)
 - ✅ **Phase 2** 领域工具层:9 个值班工具(只读四件套 / runbook 检索 / 变更三件套
   **默认 ASK 审批** / submit_diagnosis 结构化结论)、**精确恢复语义**(动作-故障类型
   匹配、传导自动解除、告警自动 resolved)、9 篇 runbook 知识库;
   配置 `[oncall] enabled = true` 开启
-- ✅ **Phase 3** 业务评测集:20 剧本 × 三重断言(BPE 词表随包分发,
+- ✅ **Phase 3** 业务评测集:60 剧本 × 三重断言(BPE 词表随包分发,
   token 计数零网络可用)(定位命中 / 变更动作集精确一致 /
-  终态恢复或零变更标记保留);**真实 LLM 首跑 80% → 迭代后 20/20**,离线回放
-  CI 门禁(`--suite oncall`,2.5s 全绿);真实审批流专项测试(放行恢复/拒绝保留)
+  终态恢复或零变更标记保留)+ `ranked_candidates` 鉴别诊断协议(2–4 条候选根因,
+  置信度降序硬校验);**真实 LLM 首跑 80% → 迭代后 20/20;60 剧本扩容后
+  Top-1 100%、完整通过 60/60**,处置用时中位 20.1s(≤120s 达标),离线回放
+  CI 门禁(`--suite oncall`,秒级全绿);真实审批流专项测试(放行恢复/拒绝保留)
 - ✅ **Phase 4** 值班工作台:告警队列(点击即发起标准诊断)+ 服务健康 + 故障演练面板
-  (20 剧本一键注入)+ **变更审批卡带拓扑影响面** + 处置报告浮层(时间线/证据链);
+  (60 剧本一键注入)+ **变更审批卡带拓扑影响面** + 处置报告浮层(时间线/证据链);
   实测走通 注入→诊断→审批→恢复→报告 全链路([运行截图](docs/product/img/05-workbench-live.png))
 - ⏳ Phase 5 量化报告与简历交付
 

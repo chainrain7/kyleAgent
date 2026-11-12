@@ -18,6 +18,7 @@ import asyncio
 import json
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -136,12 +137,20 @@ def _dump(results: list[TaskResult], summary: dict[str, Any]) -> dict[str, Any]:
 
 # 执行评测主流程
 async def _run(mode: str, task_ids: list[str], out: Path | None,
-                 suite: str = "base") -> tuple[str, int]:
+               suite: str = "base",
+               artifacts_dir: Path | None = None) -> tuple[str, int]:
     tasks = _suite_tasks(suite)
     selected = [t for t in tasks if not task_ids or t.id in task_ids]
+    if task_ids and not selected:
+        # --task 指定 id 但不在当前套件(如缺省 base 时跑 oncall-*):
+        # 跨全部任务集匹配,避免静默空跑(错误消息曾返回值被调用方丢弃)
+        all_tasks = _suite_tasks("all")
+        selected = [t for t in all_tasks if t.id in task_ids]
     if not selected:
+        print(f"error: no task matched {task_ids}", file=sys.stderr)
         return f"error: no task matched {task_ids}", 1
 
+    progress_path = artifacts_dir / "progress.md" if artifacts_dir else None
     results: list[TaskResult] = []
     with tempfile.TemporaryDirectory(prefix="kyle-evals-") as tmp:
         root = Path(tmp)
@@ -162,10 +171,13 @@ async def _run(mode: str, task_ids: list[str], out: Path | None,
                 provider = _live_provider()
 
             print(f"[{i}/{len(selected)}] {task.id} ...", flush=True)
-            result = await run_task(task, provider, root)
+            wall = time.monotonic()
+            result = await run_task(task, provider, root, artifacts_root=artifacts_dir)
+            wall_s = round(time.monotonic() - wall, 1)
             results.append(result)
             print(f"    -> {'PASS' if result.passed else 'FAIL'}"
-                  f"{'' if result.passed else ' ' + result.error[:80]}", flush=True)
+                  f"{'' if result.passed else ' ' + result.error[:80]}"
+                  f" ({wall_s}s)", flush=True)
 
             if mode == "record":
                 save_cassette(
@@ -173,9 +185,17 @@ async def _run(mode: str, task_ids: list[str], out: Path | None,
                     recorder.entries,  # type: ignore[attr-defined]
                     task_id=task.id,
                 )
+                # 断点续跑进度文件:逐任务落一行(id/耗时/passed)
+                if progress_path is not None:
+                    with progress_path.open("a", encoding="utf-8") as f:
+                        f.write(
+                            f"| {task.id} | {wall_s}s | "
+                            f"{'✅' if result.passed else '❌ ' + result.error[:60]} |\n"
+                        )
 
     summary = summarize(results)
-    report = _render(results, summary, tasks)
+    # 渲染用全量任务表:--task 可跨套件选中任务(base 套件跑 oncall-* 时也能对上)
+    report = _render(results, summary, _suite_tasks("all"))
     print("\n" + report)
 
     if out:
@@ -198,6 +218,10 @@ def main() -> int:
     parser.add_argument("--task", action="append", metavar="ID", help="只跑指定任务(可多次)")
     parser.add_argument("--out", type=Path, help="结果 JSON 存档路径")
     parser.add_argument("--compare", type=Path, metavar="OLD.json", help="与历史结果对比")
+    parser.add_argument(
+        "--artifacts-dir", type=Path,
+        help="run 产物持久化目录(events.jsonl/处置报告/进度);记录轮缺省 evals/results/<UTC>-record",
+    )
     parser.add_argument("--list", action="store_true", help="列出全部任务")
     parser.add_argument(
         "--suite", choices=["base", "oncall", "all"], default="base",
@@ -216,7 +240,22 @@ def main() -> int:
     out = args.out or (
         RESULTS_DIR / f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-{mode_name}.json"
     )
-    _, code = asyncio.run(_run(mode_name, args.task or [], out, args.suite))
+    artifacts_dir = args.artifacts_dir
+    if mode_name == "record" and artifacts_dir is None:
+        artifacts_dir = RESULTS_DIR / (
+            f"{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}-record"
+        )
+    if artifacts_dir is not None:
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        progress = artifacts_dir / "progress.md"
+        if not progress.exists():
+            progress.write_text(
+                "# 录制进度\n\n| 任务 | 耗时 | 结果 |\n|---|---|---|\n",
+                encoding="utf-8",
+            )
+    _, code = asyncio.run(
+        _run(mode_name, args.task or [], out, args.suite, artifacts_dir)
+    )
 
     if args.compare:
         if not args.compare.exists() or not out.exists():

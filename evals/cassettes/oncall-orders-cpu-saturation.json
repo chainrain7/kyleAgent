@@ -1,0 +1,262 @@
+{
+ "task_id": "oncall-orders-cpu-saturation",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:49:34.264849+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the full service topology and the active alert details.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_S04ratmmahrp6emzJJHi9309",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_ZZ3R2QGvDEDvRK6i20i73296",
+     "name": "alerts_list",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "5578e57c-bda0-48cc-857e-d0c77d8c3cc0"
+    }
+   ],
+   "usage": {
+    "input_tokens": 428,
+    "output_tokens": 49,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_nxtobt87S6DCsJjnVPUk7997",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    },
+    {
+     "id": "call_01_cnFGtyLISRPdjb2UfXCc1318",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 80
+     }
+    },
+    {
+     "id": "call_02_k1InkHnSQFSWZ3DhQ2qy7536",
+     "name": "runbook_search",
+     "input": {
+      "query": "orders CPU 高 处理延迟上升"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let's query metrics and logs for orders, and runbook search.",
+     "signature": "2693f357-dbb9-4122-935b-103d48f9020b"
+    }
+   ],
+   "usage": {
+    "input_tokens": 308,
+    "output_tokens": 132,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_hnQWBdNVEhT7E78eXkLs5300",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_NW0oRPSgwgwLWoMUFuxF7127",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "tail": 40
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders: cpu 95%, qps 950 (mean 560), p99 420 vs baseline 130. No memory leak (memory stable ~460-469). Cache hit 100%, db_qps stable 61. So it's a capacity/traffic surge on orders itself. Single service elevated, not gateway (gateway qps 500, err low, p99 120). So it's a capacity issue → scale_up orders.\n\nBut wait — check whether gateway qps also stepped up? service_status shows gateway qps=500 err 0.002 p99=120ms which seems normal. Let me check gateway metrics to see whether full-chain elevation. Also the runbook says: 全链路抬升=入口流量问题; 单服务抬升=自身容量. Let me check gateway metrics quickly (cheap, one call). Also check orders logs for bot UA — logs show no UA info. Let me check gateway metrics to rule out entry traffic surge.\n\nAlso check whether there are multiple components abnormal (composite fault). payments seems fine. Let's check gateway metrics.\n\nAlso disk 38%, no disk issue. queue_lag 0. Restart would clear crash/leak/dependency faults; CPU 95% from capacity → scale_up.\n\nLet me query gateway metrics.",
+     "signature": "af98a29b-03ee-4f10-b167-f69e426361e8"
+    }
+   ],
+   "usage": {
+    "input_tokens": 1151,
+    "output_tokens": 353,
+    "cache_read_input_tokens": 3712,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_dG1KITSnA2OAYr0V0aoc4073",
+     "name": "scale_up",
+     "input": {
+      "service": "orders",
+      "delta": 2
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Gateway stable: qps 510 vs mean 500, cpu 35%, p99 122. So entry traffic not up. orders qps went 560→950 (×1.7) with cpu 95%. Single-service elevation → own capacity.\n\nSo root cause: orders 自身容量不足 (CPU 饱和, 2 replicas limit 2 cores), qps 上升导致 CPU 95% 和延迟上升。处置: scale_up orders.\n\nLet me scale up orders.",
+     "signature": "848b784e-ad98-4534-90d2-dad447c0dcce"
+    }
+   ],
+   "usage": {
+    "input_tokens": 380,
+    "output_tokens": 156,
+    "cache_read_input_tokens": 5120,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_IWswdl3amll1eHzBrGmU2140",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_EXxe5ZZp6hLaR0Mxntv33963",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Now verify status after change.",
+     "signature": "35e769d6-afe1-40ba-b632-56cd674ae27a"
+    }
+   ],
+   "usage": {
+    "input_tokens": 196,
+    "output_tokens": 56,
+    "cache_read_input_tokens": 5504,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_FituCG2qYuPb4n4Cmjar4062",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "orders 服务自身容量饱和:2 副本在 qps 由 560 升至 950(×1.7)时 CPU 打满 95%(limit 2 cores),导致 p99 从 130ms 基线恶化至 420ms,属单服务容量类故障而非入口流量或数据库问题。",
+      "recommended_actions": [
+       {
+        "tool": "scale_up",
+        "params": {
+         "service": "orders",
+         "delta": 2
+        },
+        "note": "已执行:副本 2→4,CPU 饱和故障已清除、告警已消除"
+       },
+       {
+        "tool": "none",
+        "params": {},
+        "note": "后续观察 15min;若 qps 持续增长(疑似促销/机器人流量),考虑限流或继续扩容至上限 6;非可自动恢复项无需人工介入"
+       }
+      ],
+      "confidence": 0.88,
+      "evidence": "metrics(orders): cpu_pct current=95.0 mean=56 (step change), qps current=950 mean=560 (step change), p99_ms current=420 mean=225 (step change), error_rate 0.0031 平稳(超时未大量报错), queue_lag=0, db_qps=61.2 平稳, cache_hit_pct=100.98 正常, memory_mb 463.7→469.2 无单调上涨。logs(orders): \"16:49:18 WARN cpu 95% sustained 6m (limit 2 cores)\"、\"16:49:18 WARN p99 latency 420ms (baseline 130ms)\",无 OOMKilled/config/CrashLoopBack。对照 gateway: qps 500→510、cpu 35.7%、p99 122ms 均平稳 → 排除入口流量激增(故非全链路扩容)。payments 正常,无复合故障。处置后 service_status: orders running replicas=4 p99=95ms, 告警 alert-001 resolved。",
+      "ranked_candidates": [
+       {
+        "root_cause": "orders 服务自身容量饱和:2 副本在 qps 由 560 升至 950(×1.7)时 CPU 打满 95%(limit 2 cores),导致 p99 从 130ms 基线恶化至 420ms,属单服务容量类故障而非入口流量或数据库问题。",
+        "confidence": 0.88
+       },
+       {
+        "root_cause": "入口网关流量激增(促销/bot)向下游放大,导致 orders 过载",
+        "confidence": 0.06
+       },
+       {
+        "root_cause": "外部依赖 orders-db 慢查询/连接池耗尽拖慢 orders 并推高 CPU",
+        "confidence": 0.04
+       },
+       {
+        "root_cause": "orders 内存泄漏引发 CPU 同步升高(OOM 前兆)",
+        "confidence": 0.02
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "service_status shows orders running, p99 95ms, qps normal — healthy. Metrics window still reflects the historical step (lagging window). Good.\n\nOnly orders was faulty; no composite fault (payments, gateway fine). Submit diagnosis.\n\nranked candidates:\n1. orders 自身容量饱和 (CPU 2 核打满, qps ×1.7) → scale_up (conf 0.88)\n2. 入口流量激增 (gateway 大促) 导致下游 orders 过载 — ruled out (gateway qps/cpu 稳定) (0.07)\n3. orders-db 慢查询/连接耗尽导致 CPU 与延迟上升 — ruled out (db_qps 61 稳定, cache_hit 100%) (0.03)\n4. 内存泄漏导致 CPU 升高 — ruled out (memory 463→469 平缓, 无 OOM) (0.02)",
+     "signature": "fb8dafa2-7e0d-4154-a845-217e234d532e"
+    }
+   ],
+   "usage": {
+    "input_tokens": 519,
+    "output_tokens": 895,
+    "cache_read_input_tokens": 5632,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "**处置完成**\n\n## 排查过程(效率优先,两项以上证据即定性)\n\n| 证据 | 指向 |\n|---|---|\n| orders: cpu_pct 95%(mean 56)、qps 950(mean 560,×1.7)、p99 420ms(基线 130ms)三项同步突变 | 容量饱和 |\n| 日志 `WARN cpu 95% sustained 6m (limit 2 cores)` + `p99 latency 420ms (baseline 130ms)` | 过载超时,非代码错误 |\n| error_rate 0.0031 平稳、queue_lag=0、cache_hit_pct≈100%、db_qps 61 平稳 | 排除下游 DB / 缓存风暴 / 消费积压 |\n| memory_mb 463.7→469.2 无单调上涨、无 OOMKilled/exit 137 | 排除内存泄漏 |\n| **gateway** qps 500→510、cpu 35.7%、p99 122ms 全平稳 | 排除入口流量激增(故不扩 gateway) |\n| payments 全指标正常 | 非复合故障,仅 orders 单一组件需处置 |\n\n## 根因\norders **自身容量不足**:2 副本(每 pod limit 2 cores)在请求量升至 950 qps 时 CPU 打满 95%,引发处理延迟上升。表象是\"CPU 95%\",根因是副本数不够(单服务抬升,非全链路抬升)。\n\n## 已执行变更\n- `scale_up orders delta=2` → 副本 2→4,返回 `cleared fault(s): orders-cpu-saturation`,**alert-001 已 resolved**。\n- 复核 `service_status`:orders 恢复 running,p99 降至 95ms,qps 回落 300,err 0.003。\n\n## 后续建议\n观察 15min;若 qps 继续上升(疑促销或 bot 流量),先限流封禁,再考虑扩容至上限 6 副本。外部依赖 orders-db / payments-db / risk-svc 本轮无异常,无需人工介入。\n\n结论已通过 `submit_diagnosis` 提交(confidence 0.88,含 4 项鉴别诊断候选)。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "e259c276-04aa-46da-b516-5b7e746cf72d"
+    }
+   ],
+   "usage": {
+    "input_tokens": 354,
+    "output_tokens": 494,
+    "cache_read_input_tokens": 7040,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

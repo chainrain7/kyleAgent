@@ -1,0 +1,418 @@
+{
+ "task_id": "oncall-payments-cache-storm",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:51:28.183996+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by checking the overall service topology and the alert queue.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_OUl5X8id6pO00hJwR5vS8124",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_RUa72fYWNl2pHFpCOWBM8000",
+     "name": "alerts_list",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "d44578c0-ff47-4e17-b176-4ffd146384b5"
+    }
+   ],
+   "usage": {
+    "input_tokens": 435,
+    "output_tokens": 48,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_7vLEDBPe1lY13yMpc6t23744",
+     "name": "metrics_query",
+     "input": {
+      "service": "payments"
+     }
+    },
+    {
+     "id": "call_01_nozMkx7WvJgUhWcOyBRx1316",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_02_rYJNx8WpZeTr3YEwLqMS3396",
+     "name": "runbook_search",
+     "input": {
+      "query": "缓存失效风暴 cache stampede 数据库QPS暴涨"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let's dig into payments: logs, metrics, runbook.",
+     "signature": "661f5484-d941-4649-a115-460eda030929"
+    }
+   ],
+   "usage": {
+    "input_tokens": 321,
+    "output_tokens": 136,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_89VTrtRj2QJ638rmEOoo4402",
+     "name": "runbook_search",
+     "input": {
+      "query": "缓存命中率骤降 mass key eviction 热key同时过期 处置"
+     }
+    },
+    {
+     "id": "call_01_ZW7QEKzmyzKJ3a2nvOYa8091",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "level": "WARN",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_02_aJdSnHSvZLriuPKW23g72567",
+     "name": "service_status",
+     "input": {
+      "service": "payments"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Cache stampede: cache_hit_pct dropped from ~64 mean to 10, db_qps from baseline 70 to 610. Mass key eviction of 40% hot keys.\n\nNow: is this self-recoverable? Runbook says cache storm → scale_up the pressure-bearing service. But wait — need to distinguish root cause vs symptom. The mass key eviction could be caused by payments itself (memory/cache), or by an external dependency (payments-db, risk-svc). Let's check risk-svc and payments-db though they're external — logs_query on them returns unknown maybe. Let's check orders to see if global.\n\nAlso there might be a different runbook section for cache stampede / dependency. Let me search more runbooks and check other services' logs.",
+     "signature": "38006e65-e976-4b6a-b17b-d256d187d94c"
+    }
+   ],
+   "usage": {
+    "input_tokens": 777,
+    "output_tokens": 310,
+    "cache_read_input_tokens": 3712,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_8jtb1tu1vJdDTVXFKNZC5416",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_AAk359YGTsJtOw1z0l4O8665",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    },
+    {
+     "id": "call_02_HImWMFN4z14TxnH2jaLs2586",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "tail": 80,
+      "level": "ERROR"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Evidence pointing to cache stampede / capacity on payments: cache_hit_pct 64→10, db_qps 244→610 (baseline 70, 8.7x), mass key eviction 40% hot keys, p99 298→430.\n\nBut I must consider whether payments-db is the culprit (external → no action). Check db metrics via payments? db_qps is a payments metric. payments-db is external, not in service list, logs_query returns unknown.\n\nAlso check whether gateway/orders show similar — they don't (gateway qps 500 err 0.002, orders normal). So single-service elevation → own capacity.\n\nBut is the mass key eviction caused by memory pressure (mem 520MB rising)? Let's check memory trend — mem current 530 mean 524, gradual. Could be leak? cache_hit_pct dropped due to eviction which could be caused by memory pressure evicting cache... Let me check payments memory metric trend to see if there's a leak. Also check whether other components (risk-svc) have issues.\n\nWait — the task mentions composite fault: \"多个组件同时异常(复合故障)时,每个可自动恢复的组件都必须执行各自对应的变更动作\". So maybe there are multiple faults. Let me check other services: orders, gateway metrics quickly. Also check if payments has a memory leak (service_restart) vs capacity (scale_up). Let me check the memory trend more granularly.\n\nLet me check metrics for orders and gateway, and also look for more logs on payments (DEBUG).",
+     "signature": "55e605ed-3c1a-4e6d-badb-1a242249b880"
+    }
+   ],
+   "usage": {
+    "input_tokens": 880,
+    "output_tokens": 457,
+    "cache_read_input_tokens": 4736,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_yiSo2i1UwDCYteEZhatB6855",
+     "name": "runbook_search",
+     "input": {
+      "query": "内存泄漏 memory leak 缓存淘汰 依赖超时 处置"
+     }
+    },
+    {
+     "id": "call_01_TuvsY38ZGpmJ8LfvkuxX9531",
+     "name": "logs_query",
+     "input": {
+      "service": "payments",
+      "keyword": "cache",
+      "tail": 80
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Gateway and orders are normal → the fault is localized to payments. Single-service elevation → own capacity / cache stampede.\n\nNow: is the fix scale_up or restart? The runbook: 缓存风暴 → scale_up 承压服务. Also mass key eviction could be caused by memory pressure: mem 530/... let me check if there's a leak causing eviction. The runbook for leaks—let's check whether there's a \"内存泄漏\" runbook section. Service degraded with memory rising could be a leak fault requiring restart.\n\nLet me check payments memory trend: mean 524.2 max 530.4 current 530.4 → slight rise, ~6MB over window, not a dramatic leak. But replicas=3 with mem 520MB.\n\nHmm, the \"mass key eviction: 40% of hot keys expired simultaneously\" — simultaneous expiry suggests a cache misconfiguration / TTL alignment, or a cache flush. Could also be that the cache node restarted. But cache metrics belong to payments.\n\nLet me search runbook for memory leak and dependency sections to consider differential diagnosis. Also check payments logs with keyword \"evict\" and \"cache\" more broadly, plus DB query logs.\n\nActually let me check if there's another runbook about cache/dependency faults.",
+     "signature": "a0e00f24-2cba-42e8-aeb8-1cb0eff9a6fe"
+    }
+   ],
+   "usage": {
+    "input_tokens": 462,
+    "output_tokens": 380,
+    "cache_read_input_tokens": 6016,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "Gateway 与 orders 指标均正常，故障仅局限于 payments。执行扩容处置：",
+   "tool_calls": [
+    {
+     "id": "call_00_3LXx3uEBKXfImxgHvdIn8534",
+     "name": "scale_up",
+     "input": {
+      "service": "payments",
+      "delta": 2
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Cache keyword returned nothing? Odd — maybe log matching is line-substring on keyword and lines are \"mass key eviction\". Fine.\n\nDifferential diagnosis:\n1. payments 缓存失效风暴 (cache stampede / mass TTL expiry) → cache_hit_pct 64→10, db_qps 244→610 (baseline 70), mass key eviction log. Capacity-type → scale_up payments.\n2. payments 内存泄漏导致缓存被淘汰 → memory only 524→530 slight, no OOM logs → low.\n3. payments-db 自身问题 (external) → db QPS rise is caused by cache miss, no ERROR logs, orders-db normal → low.\n4. gateway 入口流量激增 → gateway qps 500 stable, cache_hit 100% → ruled out.\n\nAlso, could there be a composite fault? The prompt hints composite faults need each component action. But here only payments is degraded. Let's double-check risk-svc — external, can't query. payments logs show risk-svc call 45ms pass, normal.\n\nShould I also consider that the \"mass key eviction\" is a memory pressure symptom → memory_mb 520/limit? mem 520MB, does service_status show limit? Not shown. The metric isn't near 94% of limit apparent. Actually we don't know limit. Let's quickly check payments memory metric trend detail with window to see if rising monotonically. metrics_query returns only summary. current=530.4 max=530.4 mean=524.2 — rise of ~6MB in 15min. Not a leak signature (leak would be steep near limit).\n\nSo action: scale_up payments. Since cache storm → scale_out pressure-bearing service. Note replicas=3, max 6, delta default 1. Should I scale by 1 or 2? delta=1 default; limit 6. I'll do delta=2 to relieve.\n\nHmm, but does scale_up alone clear a \"cache storm\" fault in this simulation? The tool says \"Relieves capacity-type faults.\" Yes.\n\nAlso should I consider service_restart to clear cache stampede? Runbook says scale_up for cache storm; restart prohibited only for business logic bug. For memory leak, restart. Here it's capacity → scale_up.\n\nLet me decide: scale_up payments delta=2, then verify with service_status/metrics.\n\nWait - one consideration: is the root cause maybe that payments memory pressure caused eviction of hot keys (a leak on payments → restart)? That would be composite: scale_up + restart? The instruction emphasizes composite faults across components. Let's check payments memory trend more concretely — maybe check if there's a limit info in service_status. It just says mem=520MB.\n\nGiven evidence: cache_hit_pct step change 102→10 (gateway 102, orders 100, payments 10), db_qps step change to 610 vs baseline 70, memory smooth. This is clearly cache stampede driven by simultaneous TTL expiry — a capacity/cache issue on payments. Scale up.\n\nActually, hmm — should I also consider a restart as the remedy since eviction of hot keys is a state issue? Restart would clear in-process cache (making it worse) — no.\n\nDo it: scale_up payments 2.",
+     "signature": "b1b111fe-c3d2-45a2-9ae1-c391891f4f79"
+    }
+   ],
+   "usage": {
+    "input_tokens": 789,
+    "output_tokens": 766,
+    "cache_read_input_tokens": 6784,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_obHKw7jf8kHUmpCelcT03937",
+     "name": "service_status",
+     "input": {
+      "service": "payments"
+     }
+    },
+    {
+     "id": "call_01_ET_dg7yKmuyZ9gCoZ3fxprm6691",
+     "name": "metrics_query",
+     "input": {
+      "service": "payments",
+      "metric": "cache_hit_pct"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "b0d6afd4-cac2-4588-837b-21323c18d498"
+    }
+   ],
+   "usage": {
+    "input_tokens": 192,
+    "output_tokens": 88,
+    "cache_read_input_tokens": 8192,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "告警已解除，payments 恢复 healthy（p99 430→210ms）。提交结构化结论：",
+   "tool_calls": [
+    {
+     "id": "call_00_Xu6BsfwBlTbQ0y4LcOt43884",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "payments 自身热 key 同时过期引发缓存失效风暴（cache stampede），命中率从 ~100% 骤降至 10%，请求穿透到 payments-db 使 db_qps 从基线 70 暴涨至 610（约 8.7 倍），p99 由 ~120ms 抬至 430ms，属单服务容量类故障，已通过扩容恢复。",
+      "recommended_actions": [
+       {
+        "tool": "scale_up",
+        "params": {
+         "service": "payments",
+         "delta": 2
+        },
+        "note": "已完成：replicas 3->5，payments-cache-storm 故障已清除，告警 alert-001 已 resolved"
+       },
+       {
+        "tool": "后续优化建议",
+        "params": {
+         "action": "为热 key TTL 增加随机抖动/错峰刷新，并对 payments-db 查询加缓存回填互斥（singleflight）与限流，避免同时过期再次打穿 DB"
+        }
+       }
+      ],
+      "confidence": 0.9,
+      "evidence": "[payments logs] 16:50:56 WARN mass key eviction: 40% of hot keys expired simultaneously; 16:50:56 WARN db qps 610 (baseline 70)（无任何 ERROR 日志）\n[payments metrics] cache_hit_pct: current=10.0 mean=64 max=102.0（step change）；db_qps: current=610 mean=244 max=610（=8.7x baseline 70）；p99_ms: 298->430（step change）；qps 204 基本持平基线，未见入口流量突增\n[对比其他服务] gateway p99=122ms/qps=510/cache_hit=102%、orders p99=96.9ms/qps=306/cache_hit=100.98%/db_qps=61 —— 全链路正常，故障仅局限于 payments，排除入口流量突增与 orders-db 扩散\n[处置验证] scale_up payments delta=2 -> replicas=5，返回 cleared fault(s): payments-cache-storm，payments restored to healthy baseline；service_status 由 degraded 变为 running，p99 430->210ms",
+      "ranked_candidates": [
+       {
+        "root_cause": "payments 热 key 同时过期导致缓存失效风暴（cache stampede），命中率骤降使查询穿透打爆 payments-db（db_qps 8.7 倍），容量类故障，扩容可恢复",
+        "confidence": 0.9
+       },
+       {
+        "root_cause": "payments 内存泄漏/缓存被淘汰导致热 key 丢失（memory_mb 缓慢上涨、缓存被挤掉），需重启释放内存",
+        "confidence": 0.35
+       },
+       {
+        "root_cause": "外部依赖 payments-db 自身性能劣化（连接/慢查询）造成 db_qps 与 p99 抬升，属需人工处理的外部依赖问题",
+        "confidence": 0.2
+       },
+       {
+        "root_cause": "gateway 入口流量激增（大促/恶意流量）推高后端压力",
+        "confidence": 0.08
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "payments is now running/healthy, alert resolved. cache_hit_pct metric display may be historical window. service_status says running, p99 down to 210ms. Alert resolved.\n\nSubmit diagnosis.",
+     "signature": "61d61870-4031-451d-b4c3-50c58285f6f0"
+    }
+   ],
+   "usage": {
+    "input_tokens": 152,
+    "output_tokens": 820,
+    "cache_read_input_tokens": 8448,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_tps6eAUYFnxdJuOIFx5x5632",
+     "name": "submit_diagnosis",
+     "input": {
+      "confidence": 0.9,
+      "evidence": "[payments logs] 16:50:56 WARN mass key eviction: 40% of hot keys expired simultaneously; 16:50:56 WARN db qps 610 (baseline 70)；无任何 ERROR 日志\n[payments metrics] cache_hit_pct current=10.0 mean=64 max=102.0（step change）；db_qps current=610 mean=244 max=610（≈8.7x baseline 70）；p99_ms 298->430（step change）；qps=204 与基线持平，无入口流量突增\n[横向对比] gateway p99=122ms/qps=510/cache_hit=102%、orders p99=96.9ms/qps=306/cache_hit=100.98%/db_qps=61，全链路正常，故障仅局限于 payments，排除入口流量激增与 orders-db 扩散\n[处置验证] scale_up payments delta=2 -> replicas=5，返回 cleared fault(s): payments-cache-storm / payments restored to healthy baseline；service_status 由 degraded 转 running，p99 430->210ms，alert-001 resolved",
+      "ranked_candidates": [
+       {
+        "confidence": 0.9,
+        "root_cause": "payments 自身热 key 同时过期引发缓存失效风暴(cache stampede)，命中率骤降至10%使请求穿透 payments-db，db_qps 从基线70暴涨至610(约8.7倍)，p99 抬至430ms；属单服务容量类故障，已通过扩容恢复"
+       },
+       {
+        "confidence": 0.35,
+        "root_cause": "payments 内存泄漏/内存压力导致热 key 被淘汰出缓存，需 service_restart 释放内存"
+       },
+       {
+        "confidence": 0.2,
+        "root_cause": "外部依赖 payments-db 自身劣化（慢查询/连接不足）导致 db_qps 与 p99 抬升，属需人工处理的外部依赖问题"
+       },
+       {
+        "confidence": 0.08,
+        "root_cause": "gateway 入口流量激增（大促或恶意流量）推高后端压力"
+       }
+      ],
+      "recommended_actions": [
+       {
+        "params": {
+         "delta": 2,
+         "service": "payments"
+        },
+        "tool": "scale_up"
+       },
+       {
+        "params": {
+         "action": "为热 key TTL 增加随机抖动/错峰刷新，并对 DB 回源加 singleflight 互斥与限流，防止同时过期再次打穿 payments-db"
+        },
+        "tool": "后续优化建议"
+       }
+      ],
+      "root_cause": "payments 自身热 key 同时过期引发缓存失效风暴(cache stampede)，命中率骤降至10%使请求穿透 payments-db，db_qps 从基线70暴涨至610(约8.7倍)，p99 抬至430ms；属单服务容量类故障，已通过扩容恢复"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Need ranked_candidates[0].root_cause exactly equal to root_cause string. Let me set root_cause shorter and reuse identically.",
+     "signature": "2fc74f16-7b93-4deb-92e1-9f3971fa09e6"
+    }
+   ],
+   "usage": {
+    "input_tokens": 169,
+    "output_tokens": 743,
+    "cache_read_input_tokens": 9344,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "处置完成。\n\n## 诊断与处置摘要\n\n**告警**：P2 | payments 缓存失效风暴，数据库 QPS 涨 8 倍（alert-001，已于处置后 resolved）\n\n### 根因（表象 → 根因）\n- 表象：`db qps 610 (baseline 70)`（约 8.7 倍）、p99 298→430ms、服务 degraded。\n- 根因：**payments 自身热 key 同时过期引发缓存失效风暴（cache stampede）** —— 日志 `mass key eviction: 40% of hot keys expired simultaneously`，`cache_hit_pct` 由 ~100% 骤降至 10%（step change）。DB QPS 暴涨是缓存穿透的**结果**，而非数据库自身故障。\n\n### 关键证据\n| 证据 | 内容 |\n|---|---|\n| payments 日志 | `16:50:56 WARN mass key eviction: 40% of hot keys expired simultaneously` + `db qps 610 (baseline 70)`，无任何 ERROR |\n| payments 指标 | `cache_hit_pct` 10.0（mean 64, max 102，step change）、`db_qps` 610（mean 244）、`p99_ms` 430（step change） |\n| 横向对比 | gateway（cache_hit 102%、qps 510 平稳）、orders（cache_hit 100.98%、db_qps 61）全链路正常 → 排除入口流量激增、排除跨服务扩散；`qps=204` 与基线持平 → 非流量型冲击，不是大促/攻击 |\n| 内存趋势 | memory_mb 524→530 平移上涨、无 OOM/exit 137 → 排除内存泄漏 |\n\n### 处置动作（容量类 → 扩容）\n- `scale_up payments delta=2` → **replicas 3 → 5**\n- 返回：`cleared fault(s): payments-cache-storm`，`payments restored to healthy baseline`\n- 验证：service_status 由 degraded → **running**，p99 430ms → **210ms**，告警 resolved\n\n### 鉴别诊断（已提交 ranked_candidates）\n1. 缓存失效风暴/容量不足（0.90，已扩容处置）\n2. 内存泄漏致热 key 被淘汰（0.35，无 OOM、内存平稳，排除）\n3. 外部依赖 payments-db 自身劣化（0.20，无慢查询/错误日志，DB QPS 上升系缓存穿透的结果）\n4. gateway 入口流量激增（0.08，网关指标平稳，排除）\n\n### 后续治本建议（无需本次变更）\n为热 key TTL 增加随机抖动/错峰刷新，DB 回源加 singleflight 互斥与限流，避免同一时刻批量过期再次打穿 payments-db。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "5f606860-8915-49dc-bab3-3d8bcf54bdee"
+    }
+   ],
+   "usage": {
+    "input_tokens": 362,
+    "output_tokens": 632,
+    "cache_read_input_tokens": 10240,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

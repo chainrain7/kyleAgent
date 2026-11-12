@@ -8,6 +8,7 @@ AssertionError 表达失败。指标统计复用 scripts/run_metrics.compute_met
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -67,11 +68,33 @@ class TaskResult:
     metrics: dict[str, Any] = field(default_factory=dict)
 
 
+# 持久化单任务 run 产物:events.jsonl(计时与评分依据)+ oncall 报告(若有)。
+# 评测默认跑在临时目录、跑完即焚;记录轮需把产物留存到 artifacts_root/<task_id>/
+def _save_artifacts(
+    artifacts_root: Path, task_id: str, runs_root: Path, config: Any
+) -> None:
+    dest = artifacts_root / task_id
+    dest.mkdir(parents=True, exist_ok=True)
+    event_files = sorted(
+        runs_root.glob("*/events.jsonl"), key=lambda p: p.stat().st_mtime
+    )
+    if event_files:
+        shutil.copyfile(event_files[-1], dest / "events.jsonl")
+    if getattr(getattr(config, "oncall", None), "enabled", False):
+        env_dir = Path(str(config.oncall.env_dir)).expanduser()
+        reports = sorted(
+            (env_dir / "reports").glob("*.md"), key=lambda p: p.stat().st_mtime
+        )
+        if reports:
+            shutil.copyfile(reports[-1], dest / "report.md")
+
+
 # 在隔离目录中执行一个评测任务
 async def run_task(
     task: EvalTask,
     provider: object,
     root: Path,
+    artifacts_root: Path | None = None,
 ) -> TaskResult:
     workspace = root / task.id / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
@@ -126,6 +149,9 @@ async def run_task(
 
     events = [_model_dump(e) for e in collected]
     metrics = compute_metrics(events)
+
+    if artifacts_root is not None:
+        _save_artifacts(artifacts_root, task.id, store.runs_dir(session.id), config)
 
     passed = outcome.status == "success"
     error = ""

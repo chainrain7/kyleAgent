@@ -1,0 +1,346 @@
+{
+ "task_id": "oncall-gateway-thread-stuck",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:26:41.956142+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the service topology and searching the runbook in parallel.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_jDsvOPdtVnCWjfjc3W7f9170",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_RQGnG6FIvXfupipht7wy6887",
+     "name": "runbook_search",
+     "input": {
+      "query": "gateway 线程池耗尽 请求排队超时 thread pool exhausted"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "f298fccd-ea53-433d-8bfa-534429efd1dc"
+    }
+   ],
+   "usage": {
+    "input_tokens": 393,
+    "output_tokens": 79,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "现在我来检查 gateway 的指标和日志，以区分线程池泄漏或死锁与容量问题。",
+   "tool_calls": [
+    {
+     "id": "call_00_dOfX0dmjW9LEnT1QzCJd5032",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_JypvSoERdaE5VHH3zLhK0228",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "exhausted",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Let me query metrics on services and logs.\n\ngateway p99=1050ms, err=0.12, qps=500. Need to determine whether thread pool exhaustion is from capacity (qps surge) or leak/deadlock.\n\nLet's query metrics for gateway (all metrics) and logs.",
+     "signature": "821aa0e3-25cc-42df-b95c-098beec5cda4"
+    }
+   ],
+   "usage": {
+    "input_tokens": 961,
+    "output_tokens": 186,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "qps 基本持平（504→510），而 p99 翻倍——这不是容量骤增。我来确认故障机制（线程池泄漏或死锁，还是下游依赖问题）。",
+   "tool_calls": [
+    {
+     "id": "call_00_BWIkNJIcsf9kOMjFoEXg0794",
+     "name": "logs_query",
+     "input": {
+      "keyword": "pool",
+      "service": "gateway",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_FyexLAHPkGW6aLZrHrJa3138",
+     "name": "logs_query",
+     "input": {
+      "keyword": "upstream",
+      "service": "gateway",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Metrics: p99 step change 492 -> 1050, error_rate 0.049 -> 0.12, qps flat ~504 -> 510 (not a surge), cpu 35% flat, memory slightly up, queue_lag 0, cache_hit 102%.\n\nqps not increased → not capacity. Confirms thread pool exhaustion from leak/deadlock/slow task accumulation per runbook. Let me check more logs for \"pool\" / \"acquire\" / lock to distinguish connection pool vs thread pool.\n\nLet's query logs with keyword \"pool\", \"lock\", \"upstream\".",
+     "signature": "ab497d6b-8794-4de2-ab17-71ddabca5ef7"
+    }
+   ],
+   "usage": {
+    "input_tokens": 365,
+    "output_tokens": 297,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_4z6GEcUgoTi9PhYt0zhC4550",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "level": "ERROR",
+      "tail": 20
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "No upstream errors → not dependency down. Let me check overall gateway logs tail and check downstream services health briefly (already have service_status: orders running p99 95ms, payments running 210ms — healthy). So root cause is gateway's own thread pool exhaustion (leak/slow task), not downstream.\n\nRunbook: service_restart gateway (release leaked threads). scale_up is prohibited for pool exhaustion because new replicas also leak.\n\nTwo+ evidence pointing same conclusion:\n1. Log: \"thread pool exhausted: 128/128 busy (rejecting tasks)\" — thread pool, not connection pool.\n2. Metrics: p99 step change 492→1050, err 0.049→0.12, but qps flat 504→510 and cpu 35% flat — non-capacity.\n3. Downstream orders/payments running healthy, no upstream errors → not dependency.\n4. cache_hit 102%, db_qps 0, queue_lag 0 → not cache storm/backlog.\n\nSo restart gateway. Let me quickly check gateway tail logs for more context before restart — maybe one call to see recent lines. Actually efficiency: enough evidence. But let me do a quick tail check to see if there's a lock/deadlock hint, which is cheap. I'll do it together with nothing else. Actually I can just do the restart now. But it's useful to confirm no slow-task/leak signal. Let me do one quick logs_query tail 20 without keyword.\n\nI'll do that and then restart. Dependent? Independent — I can do logs then restart. But restart depends on decision; fine, do logs first in single call.\n\nActually to be efficient, do the restart now — evidence is sufficient (2+ signals). But a quick sanity check on gateway errors is cheap. I'll combine: logs_query ERROR level tail 20.",
+     "signature": "e4db6276-a345-424a-a8ae-f8d4953ce45a"
+    }
+   ],
+   "usage": {
+    "input_tokens": 208,
+    "output_tokens": 458,
+    "cache_read_input_tokens": 4864,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "证据已充分指向同一结论。按 runbook 处理：线程池耗尽应重启该服务，以释放泄漏或阻塞的线程（scale_up 无效）。",
+   "tool_calls": [
+    {
+     "id": "call_00_NFh2O3itvsRjYque8lOc6882",
+     "name": "service_restart",
+     "input": {
+      "service": "gateway"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Only one ERROR line. Evidence converges: gateway 自身线程池耗尽（128/128 busy），其中 100% 占用且 qps 平稳 → 线程泄漏/慢任务堆积，非容量、非下游。\n\n按 runbook：service_restart gateway（释放泄漏线程）；scale_up 禁止。\n\nExecute service_restart on gateway.",
+     "signature": "3f21acff-5184-4889-a3da-f5dcbcdc7d10"
+    }
+   ],
+   "usage": {
+    "input_tokens": 186,
+    "output_tokens": 147,
+    "cache_read_input_tokens": 5376,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_shGpxjuSkzHnTE5kueqr8401",
+     "name": "service_status",
+     "input": {
+      "service": "gateway"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "e6f62597-f6b0-46f2-8b8f-db90e643e1f2"
+    }
+   ],
+   "usage": {
+    "input_tokens": 248,
+    "output_tokens": 39,
+    "cache_read_input_tokens": 5504,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_QVcJP1LT4fVWdI42J5Py1040",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "gateway 自身线程池被慢任务/线程泄漏占满（128/128 busy，日志报 thread pool exhausted 并拒绝任务），而非流量增长或下游依赖故障。",
+      "recommended_actions": [
+       {
+        "tool": "service_restart",
+        "params": {
+         "service": "gateway"
+        },
+        "note": "已执行：清理 gateway-thread-stuck，服务恢复 running（p99 1050ms→120ms，err 0.12→0.002）"
+       },
+       {
+        "tool": "none",
+        "params": {},
+        "note": "治本建议（需人工/研发）：排查 gateway 线程泄漏点与慢调用（阻塞 I/O、缺少超时/线程归还），为下游调用设置超时与隔离舱；临时可评估调大池上限但仅为缓解；不要用 scale_up（新副本同样会泄漏）"
+       }
+      ],
+      "confidence": 0.9,
+      "evidence": "1) gateway 日志: \"16:26:19 ERROR thread pool exhausted: 128/128 busy (rejecting tasks)\" —— 线程池而非连接池，池满 100% 且开始拒绝任务。2) gateway metrics step change：p99 492ms→1050ms、error_rate 0.049→0.12，但 qps 504→510 基本持平、cpu 35.3%→35.7% 无抬升 → 非容量/流量激增问题。3) queue_lag=0、db_qps=0、cache_hit_pct≈102% → 非消费积压、非缓存风暴。4) 下游 orders(p99 95ms, err 0.003) 与 payments(p99 210ms, err 0.004) 均 running 健康，gateway 日志无 upstream timeout/unreachable → 排除依赖宕机。5) service_restart gateway 后 cleared fault \"gateway-thread-stuck\"，服务恢复 running（p99 120ms、err 0.002），告警 alert-001 resolved，反证根因在 gateway 自身线程池。",
+      "ranked_candidates": [
+       {
+        "root_cause": "gateway 自身线程池被慢任务/线程泄漏占满（128/128 busy），非容量问题",
+        "confidence": 0.9
+       },
+       {
+        "root_cause": "入口流量激增导致 gateway 线程池排队耗尽（容量不足）",
+        "confidence": 0.05
+       },
+       {
+        "root_cause": "下游依赖 orders/payments 响应变慢导致 gateway 请求堆积传导",
+        "confidence": 0.03
+       },
+       {
+        "root_cause": "缓存失效风暴把压力打到 gateway 与后端",
+        "confidence": 0.02
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Restored. Submit diagnosis.\n\nRanked candidates:\n1. gateway 自身线程池被慢任务/泄漏占满（128/128 busy），非容量问题 → restart (0.9)\n2. 入口流量激增导致线程池排队耗尽（容量不足）(0.05)\n3. 下游依赖 orders/payments 变慢导致 gateway 请求堆积（依赖故障）(0.03)\n4. 缓存失效风暴把压力打到 gateway/db (0.02)",
+     "signature": "df47606d-8c52-4544-a11e-47dd6cb23840"
+    }
+   ],
+   "usage": {
+    "input_tokens": 240,
+    "output_tokens": 762,
+    "cache_read_input_tokens": 5632,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_Wb6cPE20lgvYw57JEWTn0372",
+     "name": "submit_diagnosis",
+     "input": {
+      "confidence": 0.9,
+      "evidence": "1) gateway 日志: \"16:26:19 ERROR thread pool exhausted: 128/128 busy (rejecting tasks)\" —— 线程池而非连接池，池满 100% 且开始拒绝任务。2) gateway metrics step change：p99 492ms→1050ms、error_rate 0.049→0.12，但 qps 504→510 基本持平、cpu 35.3%→35.7% 无抬升 → 非容量/流量激增问题。3) queue_lag=0、db_qps=0、cache_hit_pct≈102% → 非消费积压、非缓存风暴。4) 下游 orders(p99 95ms, err 0.003) 与 payments(p99 210ms, err 0.004) 均 running 健康，gateway 日志无 upstream timeout/unreachable → 排除依赖宕机。5) service_restart gateway 后 cleared fault \"gateway-thread-stuck\"，服务恢复 running（p99 120ms、err 0.002），告警 alert-001 resolved，反证根因在 gateway 自身线程池。",
+      "ranked_candidates": [
+       {
+        "confidence": 0.9,
+        "root_cause": "gateway 自身线程池被慢任务/线程泄漏占满（128/128 busy，日志报 thread pool exhausted 并拒绝任务），而非流量增长或下游依赖故障。"
+       },
+       {
+        "confidence": 0.05,
+        "root_cause": "入口流量激增导致 gateway 线程池排队耗尽（容量不足）"
+       },
+       {
+        "confidence": 0.03,
+        "root_cause": "下游依赖 orders/payments 响应变慢导致 gateway 请求堆积传导"
+       },
+       {
+        "confidence": 0.02,
+        "root_cause": "缓存失效风暴把压力打到 gateway 与后端"
+       }
+      ],
+      "recommended_actions": [
+       {
+        "note": "已执行：清理 gateway-thread-stuck，服务恢复 running（p99 1050ms→120ms，err 0.12→0.002）",
+        "params": {
+         "service": "gateway"
+        },
+        "tool": "service_restart"
+       },
+       {
+        "note": "治本建议（需人工/研发）：排查 gateway 线程泄漏点与慢调用（阻塞 I/O、缺少超时/线程归还），为下游调用设置超时与隔离舱；临时可评估调大池上限但仅为缓解；不要用 scale_up（新副本同样会泄漏）",
+        "params": {},
+        "tool": "none"
+       }
+      ],
+      "root_cause": "gateway 自身线程池被慢任务/线程泄漏占满（128/128 busy，日志报 thread pool exhausted 并拒绝任务），而非流量增长或下游依赖故障。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Need ranked_candidates[0].root_cause exactly equal to root_cause string. Resubmit.",
+     "signature": "5eef3701-03fc-4fa7-8eb8-180e9203353f"
+    }
+   ],
+   "usage": {
+    "input_tokens": 199,
+    "output_tokens": 697,
+    "cache_read_input_tokens": 6528,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 值班处置完成\n\n**告警**：P1 | gateway | 线程池耗尽，请求排队超时 → **已自动恢复**（alert-001 resolved）\n\n### 排查过程（区分表象与根因）\n\n| 证据 | 数据 | 判断 |\n|---|---|---|\n| gateway ERROR 日志 | `thread pool exhausted: 128/128 busy (rejecting tasks)` | **线程池**（非 DB 连接池）100% 占用并拒绝任务，是直接故障点 |\n| gateway 指标突变 | p99 492ms→**1050ms**、err 0.049→**0.12** | 但 **qps 504→510 基本持平**、cpu 35.3%→35.7% 无抬升 → **排除容量和流量激增** |\n| 其他指标 | queue_lag=0、db_qps=0、cache_hit≈102% | 排除消费积压、缓存失效风暴 |\n| 下游健康 | orders(running, p99 95ms, err .003)、payments(running, p99 210ms, err .004)，gateway 无 upstream timeout 或 unreachable | **排除依赖宕机传导**（告警在 gateway，根因也在 gateway） |\n\n结论：**gateway 自身线程池被慢任务或线程泄漏占满**，并非下游问题，也不是容量不足（这是“表象”：告警表现为排队超时，看起来像过载）。\n\n### 处置动作\n- ✅ 执行 `service_restart gateway` → 返回 `cleared fault: gateway-thread-stuck`，现状态：**running，p99 120ms，err 0.002，mem 410MB**\n- ❌ 未做 scale_up：runbook 明确禁止扩容；新副本同样会泄漏线程，只会扩大影响面\n\n### 后续建议（需人工或研发处理，无自动变更）\n1. **治本**：排查线程泄漏点与慢调用（阻塞式 I/O、缺少超时、异常路径未归还线程及连接），为下游调用加超时与线程隔离舱。\n2. 临时缓解可评估调大池上限，但只是推迟爆点，不解决问题。\n3. 建议为 gateway 线程池 busy 比例（如 >85% 持续 2min）与 pool acquire 超时增加预警，可在 P1 前提前发现。\n\n置信度 **0.90**，鉴别诊断已按可能性降序提交（线程池泄漏 0.90 > 容量激增 0.05 > 下游变慢传导 0.03 > 缓存风暴 0.02）。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "d955ec39-e924-4f67-a209-956c3a3d08ea"
+    }
+   ],
+   "usage": {
+    "input_tokens": 306,
+    "output_tokens": 572,
+    "cache_read_input_tokens": 7424,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

@@ -1,0 +1,258 @@
+{
+ "task_id": "oncall-gateway-connpool-exhaust",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:25:51.684458+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "我会先查看服务拓扑，同时检索 runbook。",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_2oPjqyxjQQVq8UxsUlzf0340",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_z0uAv89IFyVC4lcpx2JJ1669",
+     "name": "runbook_search",
+     "input": {
+      "query": "gateway upstream connection pool exhausted requests queuing"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "69cdfc4b-b05c-46c2-97e5-e824a1d50862"
+    }
+   ],
+   "usage": {
+    "input_tokens": 393,
+    "output_tokens": 69,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "入口网关处于 degraded 状态，但两个下游服务都在运行。我来检查指标，并同时查看日志。",
+   "tool_calls": [
+    {
+     "id": "call_00_Wlhs9xqMtopgK515J0un5755",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    },
+    {
+     "id": "call_01_WagP4WE4Qzi1KaD7LRKP5251",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "pool"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Gateway degraded, deps orders and payments both running. Need to check what's happening. Let's query metrics for gateway and logs.\n\nNote the alert says upstream connection pool exhausted. But runbook warns: don't be misled by the alerted service; root cause often downstream. orders and payments are running though. Let me check metrics and logs.",
+     "signature": "40a91794-da99-420b-8718-c07cfe08e4c8"
+    }
+   ],
+   "usage": {
+    "input_tokens": 950,
+    "output_tokens": 176,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "入口处的 QPS 和 CPU 都平稳，所以流量并不是驱动因素。我来确认这些连接被具体什么占住，并检查下游健康状况。",
+   "tool_calls": [
+    {
+     "id": "call_00_JHGSi0ex5tCz22DjyiN75906",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "acquire",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_y799YtFWEnfGyNwtfQtO8592",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Gateway: qps flat at ~500-510 (no traffic surge), cpu 35% (not CPU bound), p99 up. Error rate 22%. So not capacity → not scale_up.\n\nConnection pool 64/64 in use — could be connection leak (needs restart) or downstream slow (connections held). Downstream orders p99=95ms, payments p99=210ms, both fine. So downstream is healthy → connections being held by gateway itself → leak.\n\nLet's check downstream metrics and gateway other logs to confirm which upstream. Log says /api/orders. orders looks healthy (err 0.003, p99 95ms). Let me check payments metrics too and gateway logs for acquire/leak.\n\nAlso check if orders itself has pool issues. Let me do a couple of queries.",
+     "signature": "264b1e87-130b-45cf-916f-ffd8c0090691"
+    }
+   ],
+   "usage": {
+    "input_tokens": 362,
+    "output_tokens": 299,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "下游 orders 完全健康（p99 97ms，err 0.3%，db_qps 稳定）。我先快速排除 payments 一侧的问题，再作判断。",
+   "tool_calls": [
+    {
+     "id": "call_00_PvEk8W9oJ0CYuDUxb5SX5603",
+     "name": "metrics_query",
+     "input": {
+      "service": "payments"
+     }
+    },
+    {
+     "id": "call_01_uTTI4RXhO5Ez2krMmeoQ8394",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "level": "ERROR",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders is healthy: p99 96ms, err 0.3%, qps steady, db_qps steady. So downstream is fine — the gateway's own pool is leaking/held.\n\nLet me check whether orders logs show anything (e.g., slow responses), and payments. Actually per efficiency principle: two+ evidence point to same conclusion → conclude.\n\nEvidence so far:\n1. Gateway pool 64/64 in use, acquire timeout, 502 on /api/orders\n2. Gateway qps flat (505→510), cpu 35% → not capacity/surge\n3. orders healthy (p99 97ms, err 0.3%, db_qps 61 steady) → not downstream degradation\n→ Conclusion: gateway's own upstream connection pool leak (connections not released), restart gateway.\n\nBut wait — need to verify it's a leak vs. downstream slowness. orders p99 97ms is fine, so not slowness. Also could be external orders-db causing orders to hold connections? orders p99 is fine.\n\nLet me quickly check payments to rule out risk-svc issue, and check gateway memory trend for leak signature. Actually memory 418 vs mean 414 — slight growth. A connection leak in app code would show memory growth too.\n\nLet me check orders logs for connection issues briefly, to make sure orders isn't hiding something (e.g., orders-db issues). Actually orders metrics look fine and there's no alert on orders. The alert is only gateway.\n\nBut careful: runbook says \"区分连接池(db 连接泄漏)与线程池(死锁/慢任务堆积)\". And \"禁止 scale_up 无效(新副本同样会泄漏)\". So restart gateway.\n\nHowever, one nuance: is this fault \"auto-recoverable\"? The pool exhaustion is on gateway itself → service_restart gateway clears leak/dependency faults. Yes.\n\nBut wait — consider the alternative: maybe gateway is a dependency-fault where its upstream (orders/payments) has a fault injected on gateway (dependency fault). The tool description says service_restart \"Clears crash/leak/dependency faults on that service\". So restart on gateway is the right action regardless.\n\nLet me do one quick check of payments + gateway memory/cpu to confirm no surge, then restart.\n\nActually let me check payments quickly and also gateway all logs tail to see the error pattern (whether all upstreams or just orders).",
+     "signature": "c15d025d-8948-4eba-8af3-99cee95d9020"
+    }
+   ],
+   "usage": {
+    "input_tokens": 239,
+    "output_tokens": 636,
+    "cache_read_input_tokens": 4992,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "两条下游链路都健康，而 gateway 自己的连接池已 100% 占满，同时 QPS 和 CPU 都平稳。这指向 gateway 侧连接泄漏，而不是容量不足或下游故障。现在执行重启。",
+   "tool_calls": [
+    {
+     "id": "call_00_3pKwB9LNgxshGH0KrJBA1763",
+     "name": "service_restart",
+     "input": {
+      "service": "gateway"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Both downstream healthy. Gateway pool 64/64 exhausted, qps flat, cpu low → not capacity. → Gateway's own connection pool leak. Restart gateway.\n\nEvidence:\n- gateway: pool 64/64 in use, acquire timeout 3000ms, 502 /api/orders\n- gateway qps 510 vs mean 505 (flat), cpu 35% → not capacity/surge\n- orders p99 97ms err 0.3% db_qps 61 steady; payments p99 214ms err 0.4% → downstream healthy, not dependency down\n\nAction: service_restart gateway (not scale_up — runbook forbids; new replicas would leak too).\n\nLet me restart.",
+     "signature": "577cca4e-a369-46ee-a255-85c67cc147b5"
+    }
+   ],
+   "usage": {
+    "input_tokens": 349,
+    "output_tokens": 242,
+    "cache_read_input_tokens": 5760,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "故障已清除：`gateway-connpool-exhaust`，告警已解决。",
+   "tool_calls": [
+    {
+     "id": "call_00_yNy4kFa8DMe3gcNW6AJu2852",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "gateway 自身上游连接池泄漏导致连接耗尽(64/64 占满、acquire 超时),请求排队并返回 502,而非下游依赖或流量容量问题。",
+      "recommended_actions": [
+       {
+        "tool": "service_restart",
+        "params": {
+         "service": "gateway"
+        },
+        "note": "已执行:清理连接池泄漏,恢复健康基线,告警 alert-001 已解除"
+       },
+       {
+        "tool": "manual_followup",
+        "params": {
+         "task": "排查 gateway 上游连接未释放/未归还的代码路径(异常分支缺少 defer close/release),修复泄漏点;临时可将池上限从 64 调大以争取时间"
+        },
+        "note": "治本措施,需研发/人工处理"
+       }
+      ],
+      "confidence": 0.92,
+      "evidence": "1) gateway 日志 16:25:30 ERROR: \"upstream connection pool exhausted (64/64 in use, timeout 3000ms)\" 与 \"502 -> /api/orders (pool acquire timeout)\" —— 池满 100%,请求排队。\\n2) gateway metrics: qps current=510 / mean=505(基本持平,无流量激增)、cpu_pct=35.7%(无过载)、queue_lag=0;但 p99 从均值 428ms 阶跃到 780ms、error_rate 从 10% 升到 22% —— 属\"延迟/错误抬升而 QPS 未涨\",排除容量类故障。\\n3) orders metrics 完全健康: p99=96.9ms(mean 95)、error_rate=0.31%、qps=306(mean 300)、db_qps=61.2 平稳;payments: p99=214ms、error_rate=0.41%、qps=204 平稳 —— 下游无变慢/宕机,排除\"下游依赖慢导致连接被长期占用\"与依赖服务宕机。\\n4) service_status: orders/payments 均 running,无 down/qps=0 服务,外部依赖 (orders-db/payments-db/risk-svc) 无异常信号。\\n5) service_restart gateway 返回 cleared fault: gateway-connpool-exhaust,恢复 healthy baseline,证实故障点在 gateway 侧连接池。",
+      "ranked_candidates": [
+       {
+        "root_cause": "gateway 自身上游连接池泄漏导致连接耗尽(64/64 占满、acquire 超时),请求排队并返回 502,而非下游依赖或流量容量问题。",
+        "confidence": 0.92
+       },
+       {
+        "root_cause": "下游依赖(orders/payments)响应变慢或外部依赖(orders-db/risk-svc)异常,导致 gateway 连接被长期占用而不释放",
+        "confidence": 0.05
+       },
+       {
+        "root_cause": "入口流量激增/容量不足导致 gateway 排队(需扩容)",
+        "confidence": 0.03
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Fault cleared: gateway-connpool-exhaust. Confirms root cause. Now submit diagnosis.\n\nRanked candidates:\n1. gateway 自身上游连接池泄漏/耗尽(连接未释放) → 0.9\n2. 下游依赖(orders/payments)变慢导致网关连接被长期占用 → 0.06\n3. 入口流量激增/容量不足导致排队 → 0.03\nMaybe also orders-db external issue 0.01. Keep 3.",
+     "signature": "0d4e3c46-57ee-4722-a2dd-c6932fd06226"
+    }
+   ],
+   "usage": {
+    "input_tokens": 251,
+    "output_tokens": 843,
+    "cache_read_input_tokens": 6144,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 处置完成\n\n**根因**：gateway **自身**上游连接池泄漏耗尽（64/64 占满），不是下游故障，也不是容量问题。\n\n### 关键判别依据（表象与根因的区分）\n\n| 证据 | 结论 |\n|---|---|\n| `upstream connection pool exhausted (64/64 in use, timeout 3000ms)` + `502 -> /api/orders (pool acquire timeout)` | 池 100% 占满，请求排队 → 这是表象所在的层级 |\n| gateway qps=510（均值 505，**未涨**）、cpu=35.7%、queue_lag=0；但 p99 从 428ms 阶跃到 780ms、err 从 10% 到 22% | 延迟和错误率上升但 QPS 不涨 → **排除容量类/流量激增**（因此 `scale_up` 不适用，且 runbook 明确禁止：新副本同样会泄漏） |\n| orders: p99=97ms、err=0.31%、db_qps=61 平稳；payments: p99=214ms、err=0.41% 平稳 | 下游健康 → **排除依赖变慢/依赖宕机** |\n\n告警文案提示的“上游连接池耗尽”容易让人误判为下游问题，但实测下游 orders、payments 指标全部正常、无 down/qps=0 的服务，说明连接是被 gateway 自己占住未归还的。\n\n### 已执行变更\n- `service_restart gateway` → 返回 `cleared fault(s): gateway-connpool-exhaust`，恢复 healthy baseline，**告警 alert-001 已解除**。\n\n### 后续治本建议（需人工/研发）\n- 排查 gateway 上游连接未归还的代码路径（异常分支缺少 `defer close` 或 release），修复泄漏点；\n- 临时可将池上限从 64 调大以争取时间，但这只是缓冲，不解决泄漏。\n\n`submit_diagnosis` 已提交，置信度 0.92，含 3 项按可能性降序排列的鉴别诊断候选。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "0d1abef9-f0d4-4239-9c43-bb6ced15d6e2"
+    }
+   ],
+   "usage": {
+    "input_tokens": 1262,
+    "output_tokens": 464,
+    "cache_read_input_tokens": 6272,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

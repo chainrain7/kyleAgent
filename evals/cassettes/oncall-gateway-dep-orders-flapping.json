@@ -1,0 +1,280 @@
+{
+ "task_id": "oncall-gateway-dep-orders-flapping",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:33:44.960742+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by checking the overall service topology and searching the runbook.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_px5EZhHYjIgdvmHyIksU4476",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_5ArTUaxBry2BVt5xmXAz4790",
+     "name": "runbook_search",
+     "input": {
+      "query": "gateway 间歇性 5xx 上游反复重连"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "5b848446-3f73-413c-ae08-9d946045bb6e"
+    }
+   ],
+   "usage": {
+    "input_tokens": 397,
+    "output_tokens": 77,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_SLJGts7myzCXF7LojnxO9213",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "level": "ERROR",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_xYCtUtvVmVP5DbCtefPf6759",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 60
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "gateway degraded err=0.14, orders degraded err=0.003. Let's look at logs for gateway and orders, and metrics.",
+     "signature": "ef7ff658-cb78-41dc-b6db-73431426653d"
+    }
+   ],
+   "usage": {
+    "input_tokens": 979,
+    "output_tokens": 145,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_WbtQ2QXjzXs2osJMg6vW5766",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    },
+    {
+     "id": "call_01_ELaTv1lJB63CDRTulxFk5144",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders has liveness probe failed, restarting container, restart #4 in 10m. That's a crash-loop type fault. Check orders metrics.\n\nAlso note: gateway's errors are downstream of orders. orders restarting → connection reset flapping.\n\nLet's check metrics for orders and gateway.",
+     "signature": "d90671d6-da98-4e09-82f4-de50a706cf62"
+    }
+   ],
+   "usage": {
+    "input_tokens": 291,
+    "output_tokens": 127,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_HcoUCUdwkwXLs6nLHJDD0934",
+     "name": "runbook_search",
+     "input": {
+      "query": "容器崩溃重启 liveness probe failed crash loop 服务 qps 骤降"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders qps dropped from ~306 mean 204 to 60 — step change. That's consistent with container crash-looping (capacity lost). orders metrics: p99 normal, error_rate low, resources normal (cpu 30%, mem 469MB, disk 38%). So it's not capacity/high-load — it's crash-loop (liveness probe failed, restart #4 in 10m).\n\nLet me check the runbook for crash loop signature.",
+     "signature": "8c008b69-decd-40d9-94e8-41faf152fec7"
+    }
+   ],
+   "usage": {
+    "input_tokens": 447,
+    "output_tokens": 148,
+    "cache_read_input_tokens": 4736,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_vUXKycI4rvporUzWKO4N0119",
+     "name": "service_restart",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Evidence:\n1. orders: \"liveness probe failed, restarting container (restart #4 in 10m)\" + \"readiness gate flapping\" → crash loop on orders.\n2. orders qps step change 306→60 (capacity loss from restarting replicas).\n3. gateway: \"upstream orders intermittent connection reset (flapping)\" + 502 → downstream propagation, not root cause.\n4. orders resources normal (cpu 30%, mem 469MB, disk 38%), queue_lag 0, cache_hit 99% → not capacity/leak/disk/db.\n\nRoot cause: orders 容器崩溃循环(liveness 探针失败反复重启),导致 gateway 上游连接 reset 间歇 5xx。\n\nAction: service_restart on orders (not gateway). Runbook says restart recovers.\n\nBut wait — check if there is a bad-config/crashloop distinction. Correct action is service_restart on orders. Let's check orders logs for config validation errors? The logs show liveness probe failed, readiness flapping — no config error. Restart is still the fix per runbook.\n\nLet's do it.",
+     "signature": "442c71cb-5ca0-42d8-a9f6-6e09864aaed2"
+    }
+   ],
+   "usage": {
+    "input_tokens": 812,
+    "output_tokens": 281,
+    "cache_read_input_tokens": 5248,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_J12V281WjpVtr85UMsYt2445",
+     "name": "service_status",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Fault name: gateway-dep-orders-flapping. Confirmed root cause: orders dependency flapping.\n\nVerify status quickly.",
+     "signature": "6e2658da-9723-4a4e-84ce-3a6b396e909f"
+    }
+   ],
+   "usage": {
+    "input_tokens": 249,
+    "output_tokens": 47,
+    "cache_read_input_tokens": 6144,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_1irwY4sQ9ia5J1FUPgNt5107",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "下游 orders 容器因 liveness 探针失败进入崩溃循环反复重启(10 分钟内第 4 次),造成 gateway 侧上游连接间歇 reset 与 502,gateway 5xx 只是传导性表象。",
+      "recommended_actions": [
+       {
+        "tool": "service_restart",
+        "params": {
+         "service": "orders"
+        },
+        "note": "已执行:清理 gateway-dep-orders-flapping,orders 恢复健康基线,gateway 级联自愈,告警 alert-001 已解除"
+       },
+       {
+        "tool": "logs_query",
+        "params": {
+         "service": "orders",
+         "keyword": "liveness"
+        },
+        "note": "跟进观察:若重启后 liveness/readiness 再次抖动并复发,按 runbook 升级为回滚发布(排查探针参数与最近发布记录)"
+       }
+      ],
+      "confidence": 0.9,
+      "evidence": "gateway: \"ERROR upstream orders intermittent connection reset (flapping)\" + \"502 Bad Gateway -> /api/orders (retry 2 of 3)\",err=0.14、p99=120ms、qps 平稳 500(自身无过载)。orders: \"WARN liveness probe failed, restarting container (restart #4 in 10m)\"、\"readiness gate flapping: ready 40s then not-ready\";metrics qps 由基线 306 跌至 60(step change),而 cpu=30.6%、mem=469MB、disk=38.8%、queue_lag=0、cache_hit=99%、db_qps≈61 均正常,排除容量/内存泄漏/磁盘/数据库因素。restart 返回 \"cleared fault(s): gateway-dep-orders-flapping\",恢复后 orders qps 回升至 300,gateway err 降至 0.002。",
+      "ranked_candidates": [
+       {
+        "root_cause": "下游 orders 容器因 liveness 探针失败进入崩溃循环反复重启(10 分钟内第 4 次),造成 gateway 侧上游连接间歇 reset 与 502,gateway 5xx 只是传导性表象。",
+        "confidence": 0.9
+       },
+       {
+        "root_cause": "orders 进程运行期坏配置/发布引入的异常导致起得来但存活探针不通过(需回滚发布而非单纯重启)。",
+        "confidence": 0.45
+       },
+       {
+        "root_cause": "orders 容量不足(副本/资源过载)导致探针超时被重启 —— 已被 cpu 30.6%、mem 平稳、qps 下滑而非抬升否定。",
+        "confidence": 0.1
+       },
+       {
+        "root_cause": "外部依赖 orders-db 慢查询/连接耗尽拖垮 orders —— 已被 db_qps 稳定 61、query 18ms、p99 96ms 否定。",
+        "confidence": 0.05
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "88763498-3189-4a05-9871-63a30d81cee6"
+    }
+   ],
+   "usage": {
+    "input_tokens": 214,
+    "output_tokens": 698,
+    "cache_read_input_tokens": 6400,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "告警已处理完毕，处置结果如下。\n\n## 排查过程与证据\n\n| 环节 | 关键发现 |\n|---|---|\n| service_status | `gateway` degraded（err=0.14），`orders` degraded（err=0.003）；`payments` 正常；externals 为 orders-db、payments-db、risk-svc |\n| gateway 日志 | `upstream orders intermittent connection reset (flapping)`、`502 Bad Gateway -> /api/orders (retry 2 of 3)` → 错误指向下游，属于**传导性警示** |\n| orders 日志 | **`liveness probe failed, restarting container (restart #4 in 10m)`**、`readiness gate flapping: ready 40s then not-ready` → 崩溃循环 |\n| orders 指标 | qps 从基线 306 降到 60，出现 **step change（阶跃变化）**；而 cpu=30.6%、mem=469MB、disk=38.8%、queue_lag=0、cache_hit≈99%、db_qps≈61 均正常 |\n| gateway 指标 | qps 平稳 500、p99 120ms、cpu 35% → 入口侧**没有**过载，排除流量激增 |\n\n**结论**：`gateway` 的间歇性 5xx 只是表象，根因是**下游 `orders` 容器崩溃循环**（liveness 探针失败、10 分钟内重启 4 次）。已排除容量不足（qps 下降而非上升、CPU 和内存平稳）、外部依赖 `orders-db` 慢查询（db_qps 稳定、单查询 18ms）、磁盘写满（38%）等假设。\n\n## 处置\n\n- ✅ 执行 `service_restart orders`（按 runbook：重启下游服务，而**不是**告警方 `gateway`）\n- 结果：`cleared fault(s): gateway-dep-orders-flapping`，`orders` 恢复健康基线，`gateway` 级联自愈，`alert-001` 已解除\n- 复检：gateway err 0.14 → **0.002**，orders qps 60 → **300**，全链路 running\n\n## 后续建议\n\n若重启后 `liveness/readiness` 再次抖动、故障复发，按 runbook 升级处理：**回滚最近一次发布**，而非反复重启掩盖问题（重点核查探针参数与发布窗口）。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "4eda24e0-59f3-41b6-b384-9fc59bd28964"
+    }
+   ],
+   "usage": {
+    "input_tokens": 401,
+    "output_tokens": 542,
+    "cache_read_input_tokens": 7296,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

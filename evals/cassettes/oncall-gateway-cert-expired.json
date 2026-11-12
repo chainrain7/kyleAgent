@@ -1,0 +1,274 @@
+{
+ "task_id": "oncall-gateway-cert-expired",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:32:27.396809+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the full service topology and searching the runbook for TLS certificate issues.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_lGkuQaspQ0cKvFqcvXtt7362",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_r6QUjMkC8suAGxC2Xf2A2067",
+     "name": "runbook_search",
+     "input": {
+      "query": "gateway TLS 证书过期 握手失败"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "d43456b4-9789-4b72-8128-16ad48bcfb87"
+    }
+   ],
+   "usage": {
+    "input_tokens": 392,
+    "output_tokens": 77,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "Runbook gives a clear signature. Now let me confirm with gateway logs and metrics.",
+   "tool_calls": [
+    {
+     "id": "call_00_EmCaFVsfaoTGLBzhDyQT3846",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "cert",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_OT5jGjusaEg8Cbku8ce21386",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "tls",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_02_UKAX0CyVcUJotHbihvgV3095",
+     "name": "metrics_query",
+     "input": {
+      "service": "gateway"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Now let's query logs of gateway for cert/tls/x509, and metrics.",
+     "signature": "76b09782-0899-4164-a26c-27f2fe172b69"
+    }
+   ],
+   "usage": {
+    "input_tokens": 935,
+    "output_tokens": 195,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "Logs and metrics align. Let me rule out the main competing hypothesis (dependency/capacity) with one quick check.",
+   "tool_calls": [
+    {
+     "id": "call_00_IQOditF673vbmmqEyP5k8027",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "level": "ERROR",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_jaexR4sxFjJKZfc4Zqe37425",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "upstream",
+      "tail": 40
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Evidence:\n1. Log: \"tls: failed to verify certificate: certificate has expired (gateway-ingress)\" — gateway-ingress, which is the ingress/gateway's own cert? Actually \"gateway-ingress\" suggests the certificate belongs to gateway's own ingress listener. Runbook says confirm whether it's own service cert or upstream channel cert (日志主体).\n\nThe subject is \"(gateway-ingress)\" — that's gateway's own ingress certificate, not an upstream dependency. Upstream deps are orders, payments — no cert errors from those.\n\n2. Metrics: error_rate step change 0.058 → 0.17, but qps flat (510 vs mean 504), cpu flat 35.7, memory flat, disk flat, queue_lag 0. So NOT capacity. Not disk. Not dependency down (orders/payments running, err low).\n\nSo root cause: gateway's own TLS certificate expired (needs human renewal). Per runbook: 单纯 service_restart 无法解决 (cert file unchanged, restart → recurrence). Human action required. So no change tool calls.\n\nLet me double check whether there's a dependency issue — orders/payments running fine. Also verify no other cert source. Let me do one quick check: logs of gateway for \"upstream\" to rule out dependency. Actually efficiency principle: two+ evidence already. But a quick check is cheap and strengthens differential. Let me check logs_query gateway keyword \"error\" level ERROR tail, and also check risk-svc? No, risk-svc external, unknown.\n\nI'll do one quick check on gateway errors level ERROR.",
+     "signature": "47d9c0fc-c745-48e7-af05-d7a76ba40b91"
+    }
+   ],
+   "usage": {
+    "input_tokens": 371,
+    "output_tokens": 490,
+    "cache_read_input_tokens": 4352,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "证据已consolidated，结论明确。现在提交结构化诊断。",
+   "tool_calls": [
+    {
+     "id": "call_00_ehCDyuzPPTJ6HMF7REzv2633",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "gateway 自身 ingress 对外服务证书已过期（certificate has expired），导致对外 TLS 握手失败、错误率抬升，需人工续期证书，非可自动恢复故障。",
+      "recommended_actions": [
+       {
+        "tool": "manual_cert_renewal",
+        "params": {
+         "service": "gateway",
+         "cert": "gateway-ingress",
+         "note": "由运维执行证书续期/替换（密钥操作不可由 Agent 代办），续期完成后滚动重启 gateway 使新证书生效"
+        }
+       },
+       {
+        "tool": "none",
+        "params": {
+         "reason": "禁止 service_restart / scale_up / log_cleanup：证书文件未更换，重启即复发，且扩容与清日志对证书过期无效"
+        }
+       }
+      ],
+      "confidence": 0.92,
+      "evidence": "1) gateway ERROR 16:32:07 \"tls: failed to verify certificate: certificate has expired (gateway-ingress)\" —— 日志主体为 gateway 自身 ingress 证书，非上游渠道证书；2) gateway ERROR 16:32:07 \"handshake failed with external partners (x509)\" 与告警\"对外握手失败\"一致；3) metrics gateway: error_rate 0.058→0.17 出现 step change，而 qps=510(mean 504)、cpu=35.7%(mean 35.3)、mem=418MB(mean 413)、disk=42.8%、queue_lag=0 全部平稳 —— 排除容量/资源/积压/磁盘类故障；4) logs_query keyword='upstream' 无任何匹配，且 service_status 显示 orders(running, err=0.003)、payments(running, err=0.004) 均正常 —— 排除依赖服务宕机；5) runbook《证书过期》明确：本服务证书续期需人工执行，单纯 service_restart 无法解决（证书文件未换，重启即复发）。",
+      "ranked_candidates": [
+       {
+        "root_cause": "gateway 自身 ingress 对外服务证书已过期（certificate has expired），导致对外 TLS 握手失败，需人工续期",
+        "confidence": 0.92
+       },
+       {
+        "root_cause": "上游/外部合作方对端证书过期导致握手校验失败（对端侧问题）",
+        "confidence": 0.05
+       },
+       {
+        "root_cause": "依赖服务 orders/payments 不可用导致 gateway 对外调用失败",
+        "confidence": 0.02
+       },
+       {
+        "root_cause": "容量不足（qps/cpu/磁盘满载）导致握手超时失败",
+        "confidence": 0.01
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Confirmed:\n- Error only cert/tls/x509, no upstream errors.\n- Subject \"gateway-ingress\" = gateway's own cert (gateway's ingress listener / external partner handshake).\n- Metrics: qps/cpu/mem/disk flat, queue_lag 0, error_rate step change → not capacity, not disk, not leak.\n- orders/payments running with low err → not dependency down.\n\nRoot cause: gateway 自身 Ingress/对外握手证书已过期（certificate has expired），属于需人工续期的密钥操作。\n\nPer runbook: restart won't help; doc explicitly prohibits restart as fix. So no change tools. Recommended action: human O&M renew cert + rolling restart after cert replaced.\n\nranked_candidates:\n1. gateway 自身 ingress 服务端证书过期（未续期）— 0.9\n2. 上游/外部合作方证书过期（对端证书）— 0.05? Log says subject gateway-ingress so low. Let's put 0.06.\n3. 依赖服务（orders/payments）不可用导致握手失败 — 0.03 (ruled out: running, low err, no upstream errors)\n4. 容量/资源不足（qps/cpu/disk）导致握手失败 — 0.01 (flat metrics)\n\nSubmit.",
+     "signature": "dc7887eb-a00b-4ae4-8059-26dbeb52e7a6"
+    }
+   ],
+   "usage": {
+    "input_tokens": 169,
+    "output_tokens": 936,
+    "cache_read_input_tokens": 5120,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "校验要求首位候选与 root_cause 完全一致，重试提交。",
+   "tool_calls": [
+    {
+     "id": "call_00_rn7Vu6ZsRqJ4IS3cfjsN5197",
+     "name": "submit_diagnosis",
+     "input": {
+      "confidence": 0.92,
+      "evidence": "1) gateway ERROR 16:32:07 \"tls: failed to verify certificate: certificate has expired (gateway-ingress)\" —— 日志主体为 gateway 自身 ingress 证书，非上游渠道证书；2) gateway ERROR 16:32:07 \"handshake failed with external partners (x509)\" 与告警\"对外握手失败\"一致；3) metrics gateway: error_rate 0.058→0.17 出现 step change，而 qps=510(mean 504)、cpu=35.7%(mean 35.3)、mem=418MB(mean 413)、disk=42.8%、queue_lag=0 全部平稳 —— 排除容量/资源/积压/磁盘类故障；4) logs_query keyword='upstream' 无任何匹配，且 service_status 显示 orders(running, err=0.003)、payments(running, err=0.004) 均正常 —— 排除依赖服务宕机；5) runbook《证书过期》明确：本服务证书续期需人工执行，单纯 service_restart 无法解决（证书文件未换，重启即复发）。",
+      "ranked_candidates": [
+       {
+        "confidence": 0.92,
+        "root_cause": "gateway 自身 ingress 对外服务证书已过期（certificate has expired），导致对外 TLS 握手失败，需人工续期证书，非可自动恢复故障。"
+       },
+       {
+        "confidence": 0.05,
+        "root_cause": "上游/外部合作方对端证书过期导致握手校验失败（对端侧问题）"
+       },
+       {
+        "confidence": 0.02,
+        "root_cause": "依赖服务 orders/payments 不可用导致 gateway 对外调用失败"
+       },
+       {
+        "confidence": 0.01,
+        "root_cause": "容量不足（qps/cpu/磁盘满载）导致握手超时失败"
+       }
+      ],
+      "recommended_actions": [
+       {
+        "params": {
+         "cert": "gateway-ingress",
+         "note": "由运维执行证书续期/替换（密钥操作不可由 Agent 代办），续期完成后滚动重启 gateway 使新证书生效",
+         "service": "gateway"
+        },
+        "tool": "manual_cert_renewal"
+       },
+       {
+        "params": {
+         "reason": "禁止 service_restart / scale_up / log_cleanup：证书文件未更换，重启即复发；扩容与清日志对证书过期无效",
+         "tool": "none"
+        },
+        "tool": "none"
+       }
+      ],
+      "root_cause": "gateway 自身 ingress 对外服务证书已过期（certificate has expired），导致对外 TLS 握手失败，需人工续期证书，非可自动恢复故障。"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Need ranked_candidates[0].root_cause exactly equal to root_cause string. Resubmit with identical text.",
+     "signature": "6e4e08fe-ed46-42c6-a212-cb7bbc8a1c7c"
+    }
+   ],
+   "usage": {
+    "input_tokens": 174,
+    "output_tokens": 692,
+    "cache_read_input_tokens": 6144,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "诊断已提交。处置结论如下：\n\n## 结论：P1 gateway TLS 证书过期 —— 需人工续期，未执行任何变更\n\n**根因（一句话）**\ngateway 自身 ingress 对外服务证书已过期（`gateway-ingress`），导致对外 TLS 握手失败、错误率抬升。这属于需人工操作的密钥/证书类问题，不可自动恢复。\n\n### 关键证据（4 项独立佐证）\n| 证据 | 内容 | 排除的假设 |\n|---|---|---|\n| gateway ERROR | `tls: failed to verify certificate: certificate has expired (gateway-ingress)` | 锁定故障点主体 = **本服务自身证书**，非对端 |\n| gateway ERROR | `handshake failed with external partners (x509)` | 与告警\"对外握手失败\"精确吻合 |\n| gateway metrics | error_rate `0.058 → 0.17` 台阶式跳变；但 qps 510(均504)、cpu 35.7%、mem 418MB、disk 42.8%、queue_lag 0 全部平稳 | 排除容量不足 / 内存泄漏 / 消费积压 / 磁盘满 |\n| `upstream` 检索 + 拓扑 | gateway 日志无任何 upstream 错误；orders(err=0.003)、payments(err=0.004) 均 running | 排除依赖服务宕机 |\n\n> 表象是\"gateway degraded + 错误率抬升\"，容易被误判为容量或依赖问题；但 qps/cpu/内存/磁盘/积压全平、下游健康，唯一异常维度就是 TLS 校验失败 —— 根因是证书过期，而非 gateway 本身\"扛不住\"或下游拖累。\n\n### 为什么没有调用任何变更工具\nrunbook《证书过期》明确禁止：**单纯 `service_restart` 无法解决**——证书文件未被替换，重启后立即复发，徒增影响面并掩盖问题。同时 `scale_up`（扩容对证书校验无效）与 `log_cleanup`（disk 仅 42%，非磁盘故障）同样不适用。\n\n### 建议处置（转运维人工）\n1. **续期/替换 `gateway-ingress` 证书**（后续期时间需覆盖证书链完整性校验）——密钥操作不可由 Agent 代办。\n2. 新证书就位后，**滚动重启 gateway** 使新证书生效；重启后 error_rate 应从 0.17 回落至 0.05 基线，告警自动消除。\n3. **防复发**：为证书到期建立提前 30 天的监控告警与自动续期（如 cert-manager / ACME），避免同类 P1 再次由\"过期\"而非\"负载\"触发。\n\n### 鉴别诊断（按可能性排序）\n1. gateway 自身 ingress 证书过期 — **0.92**（已被日志主体直接证实）\n2. 上游/外部合作方对端证书过期 — 0.05（日志主体指向自身，非对端）\n3. 依赖服务 orders/payments 不可用 — 0.02（两服务 running、错误率正常、无 upstream 报错）\n4. 容量不足导致握手超时 — 0.01（qps/cpu/磁盘/积压全部平坦，无同向偏离）",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "3cc852df-efc7-4f41-a793-236991808c24"
+    }
+   ],
+   "usage": {
+    "input_tokens": 388,
+    "output_tokens": 714,
+    "cache_read_input_tokens": 6912,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}

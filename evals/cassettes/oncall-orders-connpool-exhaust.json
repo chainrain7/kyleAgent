@@ -1,0 +1,301 @@
+{
+ "task_id": "oncall-orders-connpool-exhaust",
+ "version": 1,
+ "recorded_at": "2026-11-12T08:26:15.575290+00:00",
+ "entries": [
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "I'll start by getting the full service status and alert context.",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_2z6E3FXG3GKCkYj2hESX8820",
+     "name": "service_status",
+     "input": {}
+    },
+    {
+     "id": "call_01_ET_p4PtTbswvirWRDM22xUu5267",
+     "name": "alerts_list",
+     "input": {}
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "552000ed-d3ce-4a5e-b42c-59daf7a36852"
+    }
+   ],
+   "usage": {
+    "input_tokens": 394,
+    "output_tokens": 47,
+    "cache_read_input_tokens": 2944,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_Q1E1UWMIOE17d9VEN9Xo3387",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_CF8f5VgBuUmNDIWVAuUq2786",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders degraded, dep orders-db external (not operable). Let's look at logs and metrics.",
+     "signature": "4517eaae-b14c-45fe-9907-0b8d7a1748c5"
+    }
+   ],
+   "usage": {
+    "input_tokens": 275,
+    "output_tokens": 102,
+    "cache_read_input_tokens": 3328,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_YRxEUpqJo0ac1omIgY2G3229",
+     "name": "logs_query",
+     "input": {
+      "service": "orders-db",
+      "tail": 60
+     }
+    },
+    {
+     "id": "call_01_0IXT2pk8iyvSpQQKBTbr2470",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders-db"
+     }
+    },
+    {
+     "id": "call_02_QG0glOj2gqRzkkpKqlqP2091",
+     "name": "runbook_search",
+     "input": {
+      "query": "数据库连接池耗尽 pool exhausted 下单失败"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Orders metrics: error rate 31%, p99 890ms, memory normal, cpu normal, disk normal, qps normal, db_qps normal, cache hit fine. Connection pool exhausted 20/20.\n\nNow we need to distinguish: is orders-db slow (external dependency), or is it a leak in orders (connection leak)? db_qps is normal 61.2 (not spiking). Let's check orders-db logs — but orders-db is external, \"diagnose via logs/metrics\". Let's query logs of orders-db.\n\nAlso check runbook search.",
+     "signature": "2102c60a-111f-40c5-8bcc-1ede8c1846c5"
+    }
+   ],
+   "usage": {
+    "input_tokens": 468,
+    "output_tokens": 245,
+    "cache_read_input_tokens": 3584,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_k4LJ3LUiz9tksjTHB8EN2725",
+     "name": "logs_query",
+     "input": {
+      "service": "orders",
+      "keyword": "pool",
+      "tail": 200
+     }
+    },
+    {
+     "id": "call_01_ikTVussMyr5A5hlsjtQl2941",
+     "name": "logs_query",
+     "input": {
+      "service": "gateway",
+      "keyword": "orders",
+      "tail": 80
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "orders-db is not directly queryable. So we can't check DB. But metrics from orders: db_qps normal 61.2 (no spike), qps not increased → not capacity issue. Pool 20/20 in use, acquire timeout.\n\nKey distinguishing: is it a connection leak inside orders (restart fixes) or external DB slowness (DB slow queries → connections held longer)?\n\nEvidence: pool exhausted 20/20 in use. db_qps 61.2 normal — if DB were slow, db_qps would typically drop as each query takes longer, or... Hmm. Actually with fixed pool, if DB slow, throughput drops. db_qps is stable normal, so DB seems fine → connections are leaking/not released.\n\nLet me check other services' logs for DB-related errors? gateway logs might show. And let me look at more orders logs filtered by keyword pool / acquire / leak. Let's also check gateway logs to confirm the failure rate rise propagates.\n\nLet me do a couple more targeted queries efficiently.",
+     "signature": "034b8081-6d37-4af0-b976-4f6e35ef33b7"
+    }
+   ],
+   "usage": {
+    "input_tokens": 310,
+    "output_tokens": 346,
+    "cache_read_input_tokens": 4224,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "Evidence converges: DB is alive (db_qps stable 61.2), load is flat (qps 306 vs mean 303, cpu 30%, mem flat) → 不是容量问题,也不是 DB 慢/宕机,而是 orders 自身连接未释放(泄漏)。按 runbook 执行 restart(scale_up 明确禁止)。",
+   "tool_calls": [
+    {
+     "id": "call_00_xNUjvpz50gakOGvZ6mH89961",
+     "name": "service_restart",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "No DB-side evidence of slowness; orders-db not operable/no logs. Evidence:\n1. pool exhausted 20/20 in use, acquire timeout 5000ms\n2. qps flat (306 vs mean 303), cpu 30%, mem normal → not capacity/load\n3. db_qps flat normal 61.2 → DB not under stress; queries aren't slow, connections just not released\n4. runbook: connection pool exhaustion → service_restart; scale_up ineffective\n\nBut wait — pool exhausted could also be caused by slow downstream DB holding connections. db_qps flat and no DB error metrics. Since orders-db is not operable, a leak in orders is the operable hypothesis. The runbook explicitly says restart the service to release leaked connections, and scale_up is prohibited.\n\nHmm, but considerations: distinguish表象 vs 根因. The alert says \"orders 数据库连接池耗尽\" — that's the symptom. Root cause: connection leak in orders service (connections not released), evidenced by qps/cpu/db_qps normal. So restart orders.\n\nActually let me consider whether there's another possible fault: maybe a \"crash\" fault or \"leak\" fault injected in orders. service_status says degraded. Let's check memory: 469MB vs mean 464.6 — not growing. So not memory leak. The fault type is likely \"dependency\" or \"leak\" of connections. service_restart \"Clears crash/leak/dependency faults on that service\".\n\nGiven two+ evidence points converge → restart orders. Should I check whether it's dependency fault? If dependency fault, restart would clear it too per tool description. But if it's external orders-db being truly down, restart would be wrong. Evidence: db_qps 61.2 stable [normal] means DB is responding fine — actually db_qps would be counted by orders as queries per second; if DB were down, db_qps → 0. So DB is alive and serving 61 qps. Good: external dependency healthy → the leak is in orders pool handling. Restart is appropriate.\n\nLet me do the restart.",
+     "signature": "00d98ad3-5a10-4d13-80c3-9990fcb93fa2"
+    }
+   ],
+   "usage": {
+    "input_tokens": 223,
+    "output_tokens": 559,
+    "cache_read_input_tokens": 4736,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_ET_0fka8TqOeRGc0gu0bRNl3653",
+     "name": "service_status",
+     "input": {
+      "service": "orders"
+     }
+    },
+    {
+     "id": "call_01_ET_Ljy0RmkJxC1fxiQHnd1K3887",
+     "name": "metrics_query",
+     "input": {
+      "service": "orders"
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "5acb1497-3cac-49db-a884-d9af2c190a38"
+    }
+   ],
+   "usage": {
+    "input_tokens": 185,
+    "output_tokens": 66,
+    "cache_read_input_tokens": 5376,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "tool_use",
+   "text": "",
+   "tool_calls": [
+    {
+     "id": "call_00_hQpuw1rhQMTw28M7RGCi8673",
+     "name": "submit_diagnosis",
+     "input": {
+      "root_cause": "orders 服务自身数据库连接泄漏(连接未释放)导致连接池 20/20 全部被占用、acquire 超时,而非 orders-db 外部依赖故障或容量不足。",
+      "recommended_actions": [
+       {
+        "tool": "service_restart",
+        "params": {
+         "service": "orders"
+        }
+       },
+       {
+        "tool": "none",
+        "params": {
+         "note": "治本需人工修复连接未归还的代码路径(未 defer close / 异常分支漏关),并可为连接池增加 acquire 超时告警与连接占用监控;禁止用 scale_up 掩盖泄漏"
+        }
+       }
+      ],
+      "confidence": 0.88,
+      "evidence": "16:25:55 ERROR db connection pool exhausted (20/20 in use); 16:25:55 ERROR order create failed: pool acquire timeout after 5000ms。指标:error_rate 0.002→0.31、p99 890ms 出现 step change;但 qps=306(mean 303)、cpu=30.6%、memory_mb 469(mean 465,无增长)、db_qps=61.2(mean 60.7,平稳)、cache_hit≈100% —— 负载与 DB 侧均正常,说明非容量问题也非 DB 慢/宕机,是 orders 未归还连接。runbook《连接池耗尽》明确:service_restart 释放泄漏连接,scale_up 无效。处置后 orders 恢复 running,err=0.003,p99=95ms,alert-001 resolved。",
+      "ranked_candidates": [
+       {
+        "root_cause": "orders 服务自身数据库连接泄漏(连接未释放)导致连接池 20/20 全部被占用、acquire 超时,而非 orders-db 外部依赖故障或容量不足。",
+        "confidence": 0.88
+       },
+       {
+        "root_cause": "orders-db 外部依赖响应变慢/锁等待,导致每个请求长期占用连接、池被耗尽。",
+        "confidence": 0.35
+       },
+       {
+        "root_cause": "流量突增超出连接池容量(容量型故障)。",
+        "confidence": 0.08
+       },
+       {
+        "root_cause": "orders 进程内存/线程池问题(GC 停顿或线程池耗尽)引发请求堆积并耗尽连接。",
+        "confidence": 0.05
+       }
+      ]
+     }
+    }
+   ],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "Service restored: err=0.003, p99=95ms. Metrics window still shows historical values (window-based, lagging). service_status confirms healthy. Good.\n\nSubmit diagnosis.",
+     "signature": "fb81c669-bb33-40b3-ad55-d548fa312497"
+    }
+   ],
+   "usage": {
+    "input_tokens": 414,
+    "output_tokens": 619,
+    "cache_read_input_tokens": 5504,
+    "cache_creation_input_tokens": 0
+   }
+  },
+  {
+   "model": "claude-sonnet-4-6",
+   "strategy": "static",
+   "stop_reason": "end_turn",
+   "text": "## 处置完成\n\n**告警**:P1 orders 数据库连接池耗尽,下单失败率上升 → 已解决(alert-001 resolved)\n\n### 排查路径(区分表象与根因)\n| 证据 | 数值 | 指向 |\n|---|---|---|\n| 日志 | `db connection pool exhausted (20/20 in use)`、`pool acquire timeout after 5000ms` | 表象:池耗尽 |\n| error_rate | 0.002 → **0.31**(step change) | 故障确认 |\n| p99_ms | 120 → **890ms**(step change) | 请求阻塞 |\n| qps | 306(mean 303,**未涨**) | ❌ 排除流量突增/容量型 |\n| cpu_pct / memory_mb | 30.6% / 469MB(平稳无增长) | ❌ 排除 CPU、内存泄漏、GC 堆积 |\n| db_qps | **61.2(mean 60.7,平稳)** | ❌ 排除 orders-db 慢/宕机——DB 仍在正常服务 |\n| orders-db | 外部依赖,不可操作、无日志/指标入口 | 无法作为可处置对象 |\n\n**根因**:orders 服务自身**数据库连接泄漏**(连接未归还,未 defer close / 异常分支漏关),20 个连接被全部占满 → 新请求 acquire 超时 5s → 下单失败。告警中的\"连接池耗尽\"只是表象。\n\n### 处置动作\n- 执行 `service_restart orders` → 清除了故障标记 `orders-connpool-exhaust`\n- 结果:orders **running**,err 0.31 → **0.003**,p99 890ms → **95ms**\n- 按 runbook 明确**未使用 scale_up**(新副本同样会泄漏,无效且掩盖问题)\n\n### 后续治本建议(需研发/人工)\n1. 排查并修复连接未归还的代码路径(确保所有分支 defer close / 使用连接池包装管理)。\n2. 为连接池增加 acquire 超时、活跃连接数水位(>80%)监控告警,早于用户失败率报警。\n3. 若短期无法修复,可临时调大池上限——但只是延后爆炸,不替代修复。\n\n结构化结论已通过 `submit_diagnosis` 提交(confidence 0.88,含 4 项鉴别诊断候选)。",
+   "tool_calls": [],
+   "thinking_blocks": [
+    {
+     "type": "thinking",
+     "thinking": "",
+     "signature": "ded2bac6-09b8-4e75-8764-21dbaa308bef"
+    }
+   ],
+   "usage": {
+    "input_tokens": 287,
+    "output_tokens": 525,
+    "cache_read_input_tokens": 6528,
+    "cache_creation_input_tokens": 0
+   }
+  }
+ ]
+}
