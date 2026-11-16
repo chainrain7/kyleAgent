@@ -16,7 +16,7 @@ import socket
 import subprocess
 import sys
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 
 import pytest
@@ -163,11 +163,25 @@ async def test_websocket_relay_end_to_end(webui_stack: dict[str, object]) -> Non
                            {"session_id": sid, "content": "run echo"}, wait_s=60)
         await approve_task
 
+        # 广播带背压隔离后,命令响应可能先于同 run 的尾部事件推送到达
+        # (事件流自身仍 FIFO);这里轮询等待 run.finished 而非假设响应即送达,
+        # 流内保序保证它之前的 permission.requested / tool.call_finished 已入列表
+        async def wait_event(predicate: Callable[[dict], bool],
+                             timeout_s: float = 10.0) -> dict:
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                for e in events:
+                    if predicate(e):
+                        return e
+                await asyncio.sleep(0.05)
+            raise AssertionError("expected event not observed within timeout")
+
+        finished = await wait_event(lambda e: e.get("type") == "run.finished")
+        assert finished["status"] == "success"
+
         types = [e.get("type") for e in events]
         assert "permission.requested" in types
         assert "tool.call_finished" in types
-        finished = next(e for e in events if e.get("type") == "run.finished")
-        assert finished["status"] == "success"
         tool_ok = next(e for e in events if e.get("type") == "tool.call_finished")
         assert "kyle-e2e" in str(tool_ok.get("output", ""))
         assert result.get("run_id")

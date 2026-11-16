@@ -42,7 +42,7 @@ docker compose up --build                    # → 浏览器 http://localhost:80
 - **ReAct AgentLoop**：plan → act → observe 循环驱动多步执行，支持流式 token 输出、thinking block、`max_steps` 上限与 `end_turn` 终止判定
 - **工具调用与参数校验**：`ToolRegistry` 统一注册工具，pydantic 参数模型校验；工具失败按错误分类返回，失败结果回填后循环可继续
 - **权限审批**：每个工具调用先经过多层静态策略评估（deny_patterns → outside-cwd 强制 ASK → session 级 always 缓存 → 持久化 always（`~/.kyle/policy.toml`）→ allow_patterns → 工具默认策略）；`bash` 命令命中 cwd 之外的启发式特征（绝对路径、`~`、`..`、`$HOME`、`cd` 等）时强制弹出审批，不可被任何缓存绕过
-- **事件流外化**：`EventBus` 把执行过程发布为结构化事件（`run.*` / `step.*` / `tool.*` / `llm.*` / `permission.*` / `session.*` / `context.compacted` / `subagent.*` / `skill.invoked`），实时推送给订阅的客户端并持久化到 `runs/<run_id>/events.jsonl`
+- **事件流外化**：`EventBus` 把执行过程发布为结构化事件（`run.*` / `step.*` / `tool.*` / `llm.*` / `permission.*` / `session.*` / `context.compacted` / `subagent.*` / `skill.invoked`），实时推送给订阅的客户端并持久化到 `runs/<run_id>/events.jsonl`；IPC 广播带**背压隔离**——每个订阅者独立 bounded 队列 + pump 协程，慢客户端只丢自己的最旧事件（drop-oldest + 计数告警），不会反压卡停 agent loop
 - **trace 回放**：IPC、EventBus、LLM 三层调用全部记录到 `~/.kyle/traces/daemon.jsonl`，可用 `kyle trace` 按 run / layer / direction 过滤回放
 - **会话记忆**：多轮 run 进入同一 session，`thread.jsonl` 保存完整对话历史，`notes.md` 通过 `note_save` 工具沉淀持久笔记，`~/.kyle/context.md` 与 `.kyle/context.md` 提供全局 / 项目两层上下文注入
 - **上下文治理**：基于 token 水位的自动 compact（默认关闭，可配置阈值），TUI 中 `/compact` 手动压缩；超长 `tool_result` 在回放历史时按上限截断

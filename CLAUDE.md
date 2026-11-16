@@ -49,6 +49,8 @@ uv run kyle --version
 
 This is a **dual-process** local AI agent system. `kyle-core` is a persistent daemon; `kyle` and `kyle-tui` are clients that connect to it over TCP (127.0.0.1:7437).
 
+The IPC event broadcast is backpressure-isolated: each subscribed client has its own bounded queue drained by a dedicated pump task (`core/transport/ipc_broadcaster.py`); a slow client drops its own oldest events (drop-oldest + counted warning) instead of stalling the agent loop or other subscribers. Ordering note: per-stream event order stays FIFO, but a command response may now arrive before the same run's trailing event pushes — clients/tests waiting for an event should poll instead of assuming response-implies-delivery (see `test_webui_bridge.py`'s `wait_event`).
+
 ```
 kyle-core (daemon)
   └─ listens on 127.0.0.1:7437 (TCP)

@@ -323,6 +323,9 @@ class CoreApp:
         if self._mcp_manager is not None:
             await self._mcp_manager.stop_all()
         await server.stop()
+        # 广播器收尾:排空各订阅队列的残余事件并结束 pump 协程
+        if self._broadcaster is not None:
+            await self._broadcaster.close()
         if self._trace is not None:
             await self._trace.stop()
 

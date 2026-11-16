@@ -36,6 +36,9 @@ class MemoryIndex:
     def __init__(self, db_path: Path) -> None:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(db_path))
+        # WAL:读写不互斥(默认 journal 模式写锁会挡住并发读);busy_timeout 等锁而非立即报错
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.execute(
             """
             CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(
