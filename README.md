@@ -65,34 +65,7 @@ docker compose up --build                    # → 浏览器 http://localhost:80
 
 ## 架构
 
-```
-┌────────────┐        ┌──────────────┐
-│  kyle CLI  │        │   kyle-tui   │        客户端（TUI 为主前端）
-└─────┬──────┘        └──────┬───────┘
-      │   JSON-RPC 2.0 请求 + 事件推送（NDJSON，TCP 127.0.0.1:7437）
-      └──────────┬─────────────┘
-                 ▼
-        ┌──────────────────┐
-        │    kyle-core     │  常驻 daemon
-        │  ┌────────────┐  │
-        │  │ AgentRunner│  │  每次 run 组装下列组件
-        │  └─────┬──────┘  │
-        │        ▼         │
-        │  ┌────────────┐  │
-        │  │ AgentLoop  │  │  ReAct：LLM 思考 → 工具调用 → 结果回填
-        │  └─────┬──────┘  │
-        └────────┼─────────┘
-   ┌─────────┬──┴──────┬───────────┬───────────┬───────────┐
-   ▼         ▼         ▼           ▼           ▼           ▼
- LLM      Tool     Permission    EventBus  SessionStore  Compactor
-Provider  Registry   Manager                             上下文压缩
-(Anthropic)
-   │         │                      │
-   │         ├─→ MCP servers        ├─→ TUI 实时渲染
-   │         │   (stdio / TCP)      ├─→ runs/<run_id>/events.jsonl
-   │         └─→ 内建工具           └─→ TraceWriter → ~/.kyle/traces/daemon.jsonl
-   └─→ 审批结果持久化 → ~/.kyle/policy.toml
-```
+![kyleAgent 运行时架构](docs/product/img/architecture.svg)
 
 ## 手动安装(开发者)
 
