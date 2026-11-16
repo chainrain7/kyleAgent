@@ -45,3 +45,18 @@ jobs:
 
       - name: Protocol doc sync check
         run: uv run python scripts/gen_protocol_doc.py --check
+
+  # 镜像构建校验:保证"Docker 一键起"承诺不烂(build 通过 + compose 语法合法;
+  # 不 push、不登录,容器集成行为由本机实测背书)
+  docker:
+    name: docker build & compose config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t kyle-agent:ci .
+
+      - name: Compose config check
+        run: docker compose config -q

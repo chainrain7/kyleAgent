@@ -30,6 +30,13 @@ uv run python scripts/gen_protocol_doc.py --check
 uv run kyle-core                        # foreground; Ctrl+C to stop
 KYLE_PORT=8000 uv run kyle-core        # override port
 
+# Docker one-click: daemon (kyle-core) + Web Console (kyle-webui) dual services sharing one image
+docker compose up --build              # → http://localhost:8080; no Key still browsable, Agent inference requires configuring ANTHROPIC_API_KEY in .env
+docker compose config -q               # compose syntax check (executed the same way in the CI docker job)
+
+# Run Web Console bridge manually (same image, no compose needed)
+uv run --extra webui kyle-webui        # → http://127.0.0.1:8080
+
 # Runbook retrieval quality eval (offline, local hashing embedder, no key)
 uv run python scripts/eval_rag.py
 

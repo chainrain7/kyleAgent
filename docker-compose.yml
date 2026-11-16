@@ -1,0 +1,51 @@
+# kyleAgent 一键起:daemon(kyle-core)+ Web Console 桥接器(kyle-webui)双服务
+# 用法:docker compose up --build   →  浏览器 http://localhost:8080
+# 说明:两服务共用同一镜像(见 Dockerfile,webui extra 已装齐);
+#       compose 自动读取项目根 .env 做变量插值(.env 里配 ANTHROPIC_API_KEY 即生效);
+#       无 Key 也能浏览 UI(daemon 惰性构建 provider,不崩)。
+services:
+  core:
+    build: .
+    image: kyle-agent:latest
+    container_name: kyle-core
+    environment:
+      KYLE_HOST: 0.0.0.0            # 容器内绑全部接口(仅 compose 网络可见)
+      KYLE_PORT: "7437"
+      KYLE_ONCALL_ENABLED: "true"   # 值班工作台演示
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+    ports:
+      - "127.0.0.1:${KYLE_CORE_PORT:-7437}:7437"   # 默认仅本机;放开局域网去掉 127.0.0.1 前缀
+    volumes:
+      - kyle-home:/root/.kyle       # oncall 环境/知识库/会话持久化
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket;socket.create_connection(('127.0.0.1',7437),timeout=3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  webui:
+    image: kyle-agent:latest        # 共用上面 build 出的镜像,不重复构建
+    container_name: kyle-webui
+    depends_on:
+      core:
+        condition: service_healthy
+    entrypoint: ["uv", "run", "kyle-webui"]
+    command: ["--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      KYLE_HOST: core               # daemon 地址 = compose 服务名
+      KYLE_PORT: "7437"
+    ports:
+      - "127.0.0.1:${KYLE_WEBUI_PORT:-8080}:8080"
+    volumes:
+      - kyle-home:/root/.kyle       # 与 core 共享 oncall 环境:inject 写告警、daemon 出报告必须同目录
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/',timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  kyle-home:

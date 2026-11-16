@@ -20,14 +20,18 @@
 [产品原型](docs/product/mockups.md) · [量化报告](docs/report/metrics.md) ·
 [PRD](docs/product/PRD.md) · [技术设计](docs/design/tech-design.md)
 
-**五分钟演示**:
+**一键体验(Docker Compose,3 条命令)**:
 
 ```bash
-uv sync --extra webui
-uv run kyle-core &            # 终端 1:daemon(配置 [oncall] enabled)
-uv run kyle-webui &           # 终端 2:值班工作台 http://127.0.0.1:8080
-# 浏览器:故障演练 → 选剧本 → 点告警卡 → Enter → 审批卡按 y → 看报告
+git clone https://github.com/chainrain7/kyleAgent.git && cd kyleAgent
+echo 'ANTHROPIC_API_KEY=sk-ant-...' > .env   # 有 Key 完整体验;无 Key 也能浏览 UI
+docker compose up --build                    # → 浏览器 http://localhost:8080 值班工作台
 ```
+
+> - **无 Key 也能起**:界面可浏览、服务健康/告警队列可看,Agent 推理需在 `.env` 配 Key(daemon 惰性构建 provider,无 Key 不崩)
+> - 端口默认只绑本机 `127.0.0.1`:换端口用环境变量 `KYLE_WEBUI_PORT` / `KYLE_CORE_PORT`(如 `KYLE_WEBUI_PORT=8091 docker compose up`);要放开局域网,去掉 `docker-compose.yml` 中 `ports` 的 `127.0.0.1:` 前缀
+> - 浏览器操作:故障演练 → 选剧本 → 点告警卡 → 发送 → 变更类操作在审批卡按 y 放行 → 自动出处置报告
+> - 收场:`docker compose down -v`(数据卷一并清除)
 
 ---
 
@@ -90,14 +94,14 @@ Provider  Registry   Manager                             上下文压缩
    └─→ 审批结果持久化 → ~/.kyle/policy.toml
 ```
 
-## 快速开始
+## 手动安装(开发者)
 
-前置要求：Python 3.12（`>=3.12,<3.13`）、[uv](https://docs.astral.sh/uv/)、一个 Anthropic API Key。
+前置要求：Python 3.12（`>=3.12,<3.13`）、[uv](https://docs.astral.sh/uv/)、一个 Anthropic API Key。只想跑起来看效果用上方「一键体验(Docker)」即可,本节面向需要改代码/调试的开发者。
 
 ```bash
 # 1. 克隆并安装依赖
-git clone https://github.com/chainrain7/kyleCode.git
-cd kyleCode
+git clone https://github.com/chainrain7/kyleAgent.git
+cd kyleAgent
 uv sync
 
 # 2. 配置环境变量
@@ -114,6 +118,9 @@ uv run kyle ping
 
 # 5. 启动主前端（TUI）
 uv run kyle-tui
+
+# 6. 值班工作台（Web Console,可选)
+uv run --extra webui kyle-webui    # → 浏览器 http://127.0.0.1:8080
 ```
 
 `kyle-tui` 是主要前端。`kyle chat` 提供一个等价的多轮会话终端（适合脚本化验证），`kyle run --goal "..."` 执行一次性任务。
@@ -454,12 +461,12 @@ uv run python scripts/run_evals.py --replay
 uv run python scripts/run_evals.py --compare evals/results/baseline.json
 ```
 
-GitHub Actions（`.github/workflows/ci.yml`）在 ubuntu / macos / windows 三平台矩阵上执行全部质量门禁，push 到 main 或提 PR 自动触发。
+GitHub Actions（`.github/workflows/ci.yml`）在 ubuntu / macos / windows 三平台矩阵上执行全部质量门禁,另设独立 `docker` job(镜像构建 + `docker compose config` 语法校验,不 push 不登录);push 到 main 或提 PR 自动触发。
 
 ## 项目结构
 
 ```
-kyleCode/
+kyleAgent/
 ├── src/kyle_agent/
 │   ├── cli/            # kyle 命令行客户端（ping / run / chat / core / trace / version）
 │   ├── core/           # kyle-core daemon

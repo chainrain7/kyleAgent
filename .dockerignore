@@ -1,0 +1,28 @@
+# 构建上下文只保留 pyproject.toml / uv.lock / src/(dist 随包),其余一律不进镜像
+.git
+.venv
+node_modules
+
+# webui 前端源码(需 Node 构建;构建产物 src/kyle_agent/webui/dist 保留在镜像内)
+src/kyle_agent/webui/frontend
+
+# 测试/文档/评估/CI(镜像运行不需要)
+tests
+docs
+evals
+scripts
+.github
+
+# 密钥与本地状态:.env 含真实 API Key,严禁入镜像
+.env
+.kyle
+*.log
+.coverage*
+_systest_logs
+
+# Python/工具缓存
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
