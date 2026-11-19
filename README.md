@@ -1,5 +1,7 @@
 # OnCallCopilot
 
+[![CI](https://github.com/chainrain7/kyleAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/chainrain7/kyleAgent/actions/workflows/ci.yml)
+
 > 面向 SRE 的智能值班助手 —— 告警进来自动查,危险操作你审批,处置报告自动出。
 > 基于**自研 Agent 运行时 kyleAgent** 构建(daemon + 多客户端架构)。
 
@@ -12,7 +14,7 @@
 | 端到端处置用时(record 实测) | 中位 **20.1s** / P90 29.3s(PRD ≤120s 达标;MTTD 16.3s / MTTR 10.4s,详见[量化报告 §8](docs/report/metrics.md)) |
 | 越权操作 | **0**(机器断言 + 真实审批流测试双层证据) |
 | 诊断类剧本零变更(不该动手时不动手) | 6/6 首轮全过 |
-| 测试 | 611 项(518 单测 + 93 集成,2026-11-12 统计)· ubuntu/macos/windows 三平台 CI |
+| 测试 | 614 项(521 单测 + 93 集成,2026-11-19 统计)· ubuntu/macos/windows 三平台 CI |
 
 一次完整的值班闭环:**告警注入 → Agent 查日志/查指标/检索 runbook 推理根因 →
 变更操作(重启/扩容/清盘)弹出带影响面的审批卡 → 人工放行 → 告警自动 resolved →
